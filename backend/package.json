@@ -1,0 +1,27 @@
+{
+  "name": "backend",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "express": "*",
+    "cors": "*",
+    "dotenv": "*"
+  },
+  "devDependencies": {
+    "@types/express": "*",
+    "@types/cors": "*",
+    "@types/node": "*",
+    "tsx": "*",
+    "typescript": "*",
+    "eslint": "*",
+    "@typescript-eslint/eslint-plugin": "*",
+    "@typescript-eslint/parser": "*"
+  }
+}

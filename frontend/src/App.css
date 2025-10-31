@@ -1,0 +1,14 @@
+.App {
+  padding: 2rem;
+}
+
+h1 {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+p {
+  font-size: 1.2rem;
+  color: #7f8c8d;
+}
