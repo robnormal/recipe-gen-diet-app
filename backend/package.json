@@ -6,22 +6,28 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "test": "jest",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "express": "*",
     "cors": "*",
-    "dotenv": "*"
+    "dotenv": "*",
+    "express": "*"
   },
   "devDependencies": {
-    "@types/express": "*",
     "@types/cors": "*",
+    "@types/express": "*",
+    "@types/jest": "*",
     "@types/node": "*",
-    "tsx": "*",
-    "typescript": "*",
-    "eslint": "*",
+    "@types/supertest": "*",
     "@typescript-eslint/eslint-plugin": "*",
-    "@typescript-eslint/parser": "*"
+    "@typescript-eslint/parser": "*",
+    "eslint": "*",
+    "jest": "*",
+    "supertest": "*",
+    "ts-jest": "*",
+    "tsx": "*",
+    "typescript": "*"
   }
 }
