@@ -14,12 +14,13 @@ CREATE TABLE food_categories (
 CREATE TABLE foods (
     id SERIAL PRIMARY KEY,
     fdc_id INTEGER UNIQUE,
-    food_class VARCHAR(50) NOT NULL,
+    food_class VARCHAR(50),
     description TEXT NOT NULL,
     ndb_number INTEGER,
     data_type VARCHAR(50),
     food_category_id INTEGER,
     publication_date DATE,
+    calorie_density REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (food_category_id) REFERENCES food_categories(id)
@@ -32,7 +33,7 @@ CREATE TABLE nutrients (
     number VARCHAR(10) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     rank INTEGER,
-    unit_name VARCHAR(20) NOT NULL,
+    unit_name VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -51,12 +52,10 @@ CREATE TABLE food_portions (
     id INTEGER PRIMARY KEY,
     food_id INTEGER NOT NULL,
     measure_unit_id INTEGER NOT NULL,
-    value NUMERIC(15, 6) NOT NULL,
-    amount NUMERIC(15, 6) NOT NULL,
+    amount REAL NOT NULL,
     modifier VARCHAR(100),
-    gram_weight NUMERIC(15, 6) NOT NULL,
+    gram_weight REAL NOT NULL,
     sequence_number INTEGER,
-    min_year_acquired INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (food_id) REFERENCES foods(id) ON DELETE CASCADE,
     FOREIGN KEY (measure_unit_id) REFERENCES measure_units(id)
@@ -68,7 +67,7 @@ CREATE TABLE food_nutrients (
     id INTEGER PRIMARY KEY,
     food_id INTEGER NOT NULL,
     nutrient_id INTEGER NOT NULL,
-    amount NUMERIC(15, 6) NOT NULL,
+    amount REAL NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (food_id) REFERENCES foods(id) ON DELETE CASCADE,
