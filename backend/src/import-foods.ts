@@ -5,6 +5,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// nutrient.number for calories (there's more than one possibility)
+const CALORIE_NUTRIENT_NUMBERS = ['208'];
+
 interface NutrientData {
   id: number;
   number: string;
@@ -21,12 +24,11 @@ interface MeasureUnit {
 
 interface FoodPortion {
   id: number;
-  value: number;
-  amount: number;
+  value?: number;
+  amount?: number;
   modifier?: string;
   gramWeight: number;
   sequenceNumber?: number;
-  minYearAcquired?: number;
   measureUnit: MeasureUnit;
 }
 
@@ -66,10 +68,7 @@ function parseDate(dateStr: string): Date | null {
 /**
  * Get or create a food category and return its ID
  */
-async function getOrCreateFoodCategory(
-  client: PoolClient,
-  description: string
-): Promise<number> {
+async function getOrCreateFoodCategory(client: PoolClient, description: string): Promise<number> {
   if (!description) {
     throw new Error('Food category description is required');
   }
@@ -82,24 +81,21 @@ async function getOrCreateFoodCategory(
 
   if (existing.rows.length > 0) {
     return existing.rows[0].id;
+  } else {
+    // Create new category
+    const result = await client.query(
+      'INSERT INTO food_categories (description) VALUES ($1) RETURNING id',
+      [description]
+    );
+
+    return result.rows[0].id;
   }
-
-  // Create new category
-  const result = await client.query(
-    'INSERT INTO food_categories (description) VALUES ($1) RETURNING id',
-    [description]
-  );
-
-  return result.rows[0].id;
 }
 
 /**
  * Get or create a nutrient and return its ID
  */
-async function getOrCreateNutrient(
-  client: PoolClient,
-  nutrient: NutrientData
-): Promise<number> {
+async function getOrCreateNutrient(client: PoolClient, nutrient: NutrientData): Promise<number> {
   // Check if nutrient exists
   const existing = await client.query(
     'SELECT id FROM nutrients WHERE id = $1 OR number = $2',
@@ -216,12 +212,8 @@ async function importFood(pool: Pool, food: FoodItem): Promise<void> {
       );
 
       // Delete existing portions and nutrients for this food
-      await client.query('DELETE FROM food_portions WHERE food_id = $1', [
-        foodId,
-      ]);
-      await client.query('DELETE FROM food_nutrients WHERE food_id = $1', [
-        foodId,
-      ]);
+      await client.query('DELETE FROM food_portions WHERE food_id = $1', [foodId]);
+      await client.query('DELETE FROM food_nutrients WHERE food_id = $1', [foodId]);
     } else {
       // Insert new food
       const foodResult = await client.query(
@@ -241,6 +233,8 @@ async function importFood(pool: Pool, food: FoodItem): Promise<void> {
       );
       foodId = foodResult.rows[0].id;
     }
+
+    let calorieDensity: number | null = null;
 
     // Import nutrients
     if (food.foodNutrients && food.foodNutrients.length > 0) {
@@ -280,14 +274,37 @@ async function importFood(pool: Pool, food: FoodItem): Promise<void> {
               [foodNutrientId, foodId, nutrientId, foodNutrient.amount]
             );
           }
+
+          // Record calorie density, if this nutrient is calories
+          // TODO: This will ignore all but the last "energy" nutrient, if multiple are present
+          if (foodNutrient.nutrient && CALORIE_NUTRIENT_NUMBERS.includes(foodNutrient.nutrient.number)) {
+            // Nutrient amounts are per 100g. Let's make life easier on ourselves
+            calorieDensity = foodNutrient.amount / 100.0;
+          }
         }
       }
+    }
+
+    if (calorieDensity !== null) {
+      // Update existing food
+      await client.query(
+        `UPDATE foods SET 
+         calorie_density = $1, 
+         updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [
+          calorieDensity,
+          foodId,
+        ]
+      );
     }
 
     // Import portions
     if (food.foodPortions && food.foodPortions.length > 0) {
       for (const portion of food.foodPortions) {
-        if (portion.measureUnit) {
+        const portionAmount = portion.amount || portion.value;
+
+        if (portion.measureUnit && portionAmount) {
           const measureUnitId = await getOrCreateMeasureUnit(
             client,
             portion.measureUnit
@@ -295,28 +312,24 @@ async function importFood(pool: Pool, food: FoodItem): Promise<void> {
 
           await client.query(
             `INSERT INTO food_portions (
-             id, food_id, measure_unit_id, value, amount, modifier, 
-             gram_weight, sequence_number, min_year_acquired
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             id, food_id, measure_unit_id, amount, modifier, 
+             gram_weight, sequence_number
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7)
              ON CONFLICT (id) DO UPDATE SET
              food_id = $2,
              measure_unit_id = $3,
-             value = $4,
-             amount = $5,
-             modifier = $6,
-             gram_weight = $7,
-             sequence_number = $8,
-             min_year_acquired = $9`,
+             amount = $4,
+             modifier = $5,
+             gram_weight = $6,
+             sequence_number = $7`,
             [
               portion.id,
               foodId,
               measureUnitId,
-              portion.value,
-              portion.amount,
+              portionAmount,
               portion.modifier || null,
               portion.gramWeight,
               portion.sequenceNumber || null,
-              portion.minYearAcquired || null,
             ]
           );
         }
@@ -334,43 +347,56 @@ async function importFood(pool: Pool, food: FoodItem): Promise<void> {
   }
 }
 
+// Database connection configuration
+function dbConnection(): Pool {
+  return new Pool({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: process.env.DB_NAME || 'recipe_diet_db',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || '',
+  });
+}
+
+function getFileContent(filepath: string): string {
+  // Read and parse JSON file
+  const filePath = path.resolve(filepath);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`JSON file not found: ${filePath}`);
+  }
+
+  return fs.readFileSync(filePath, 'utf-8');
+}
+
+function parseFoods(fileContent: string) {
+  let foodObj: { 'FoundationFoods': FoodItem[] };
+  try {
+    foodObj = JSON.parse(fileContent);
+  } catch (parseError) {
+    throw new Error(`Failed to parse JSON file: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+  }
+  const foods = foodObj.FoundationFoods;
+
+  if (!Array.isArray(foods)) {
+    throw new Error('JSON file must contain an array of food items');
+  }
+
+  return foods;
+}
+
 /**
  * Main import function
  */
 async function importFoods(jsonFilePath: string): Promise<void> {
-  // Database connection configuration
-  const pool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432'),
-    database: process.env.DB_NAME || 'recipe_diet_app',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || '',
-  });
+  const pool = dbConnection();
 
   try {
     // Test connection
     await pool.query('SELECT 1');
     console.log('✓ Connected to database');
 
-    // Read and parse JSON file
-    const filePath = path.resolve(jsonFilePath);
-    
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`JSON file not found: ${filePath}`);
-    }
-    
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    let foods: FoodItem[];
-    
-    try {
-      foods = JSON.parse(fileContent);
-    } catch (parseError) {
-      throw new Error(`Failed to parse JSON file: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
-    }
-    
-    if (!Array.isArray(foods)) {
-      throw new Error('JSON file must contain an array of food items');
-    }
+    const fileContent = getFileContent(jsonFilePath);
+    const foods = parseFoods(fileContent);
 
     console.log(`\nFound ${foods.length} food item(s) to import\n`);
 
@@ -392,11 +418,10 @@ async function importFoods(jsonFilePath: string): Promise<void> {
 
 // Run the import if this script is executed directly
 if (require.main === module) {
-  let jsonFile = process.argv[2];
+  const jsonFile = process.argv[2];
   if (!jsonFile) {
-    // Default to project root if no file specified
-    const projectRoot = path.resolve(__dirname, '../..');
-    jsonFile = path.join(projectRoot, 'food-json-example.json');
+    console.error('No file to import');
+    process.exit(1);
   }
   importFoods(jsonFile)
     .then(() => {
@@ -410,4 +435,3 @@ if (require.main === module) {
 }
 
 export { importFoods };
-
