@@ -8,26 +8,32 @@
     "start": "node dist/index.js",
     "test": "jest",
     "lint": "eslint src --ext .ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "import-foods": "tsx src/import-foods.ts"
   },
   "dependencies": {
     "cors": "*",
     "dotenv": "*",
-    "express": "*"
+    "express": "*",
+    "pg": "*"
   },
   "devDependencies": {
+    "@eslint/js": "*",
     "@types/cors": "*",
     "@types/express": "*",
     "@types/jest": "*",
     "@types/node": "*",
+    "@types/pg": "*",
     "@types/supertest": "*",
     "@typescript-eslint/eslint-plugin": "*",
     "@typescript-eslint/parser": "*",
     "eslint": "*",
+    "globals": "*",
     "jest": "*",
     "supertest": "*",
     "ts-jest": "*",
     "tsx": "*",
-    "typescript": "*"
+    "typescript": "*",
+    "typescript-eslint": "*"
   }
 }

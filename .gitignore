@@ -4,5 +4,11 @@ dist
 .DS_Store
 *.log
 
+# Ignore USDA data import files
+usda_data/**/*.json
+usda_data/**/*.csv
+usda_data/**/*.zip
+usda_data/**/*.xlsx
+
 # Vim swap files
 *.sw?
