@@ -12,3 +12,6 @@ usda_data/**/*.xlsx
 
 # Vim swap files
 *.sw?
+
+# Intellij settings files
+.idea
