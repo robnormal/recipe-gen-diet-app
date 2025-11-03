@@ -21,6 +21,7 @@ CREATE TABLE foods (
     food_category_id INTEGER,
     publication_date DATE,
     calorie_density REAL,
+    description_tsvector tsvector GENERATED ALWAYS AS (to_tsvector('english', description)) STORED,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (food_category_id) REFERENCES food_categories(id)
@@ -75,16 +76,61 @@ CREATE TABLE food_nutrients (
     UNIQUE(food_id, nutrient_id)
 );
 
+-- Table: users
+-- User accounts for the application
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    username VARCHAR(100) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Table: recipes
+-- User-authored recipes
+CREATE TABLE recipes (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    instructions TEXT,
+    servings INTEGER,
+    total_time_minutes INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, name)
+);
+
+-- Table: ingredients
+-- Ingredients that compose a recipe; each references a food
+CREATE TABLE ingredients (
+    id SERIAL PRIMARY KEY,
+    recipe_id INTEGER NOT NULL,
+    food_id INTEGER NOT NULL,
+    measure_unit_id INTEGER,
+    quantity REAL,
+    gram_weight REAL NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
+    FOREIGN KEY (food_id) REFERENCES foods(id) ON DELETE RESTRICT,
+    FOREIGN KEY (measure_unit_id) REFERENCES measure_units(id) ON DELETE SET NULL
+);
+
 -- Indexes for performance
-CREATE INDEX idx_foods_fdc_id ON foods(fdc_id);
 CREATE INDEX idx_foods_description ON foods(description);
 CREATE INDEX idx_foods_food_category_id ON foods(food_category_id);
-CREATE INDEX idx_nutrients_number ON nutrients(number);
 CREATE INDEX idx_nutrients_name ON nutrients(name);
 CREATE INDEX idx_food_nutrients_food_id ON food_nutrients(food_id);
 CREATE INDEX idx_food_nutrients_nutrient_id ON food_nutrients(nutrient_id);
 CREATE INDEX idx_food_portions_food_id ON food_portions(food_id);
 CREATE INDEX idx_food_portions_measure_unit_id ON food_portions(measure_unit_id);
+CREATE INDEX idx_foods_description_tsvector ON foods USING GIN(description_tsvector);
+CREATE INDEX idx_recipes_user_id ON recipes(user_id);
+CREATE INDEX idx_ingredients_recipe_id ON ingredients(recipe_id);
+CREATE INDEX idx_ingredients_food_id ON ingredients(food_id);
 
 -- Comments for documentation
 COMMENT ON TABLE food_categories IS 'Categories for organizing foods (e.g., Nut and Seed Products)';
@@ -93,4 +139,6 @@ COMMENT ON TABLE nutrients IS 'Master catalog of all nutrients with their proper
 COMMENT ON TABLE measure_units IS 'Units of measurement for food portions (cup, tablespoon, etc.)';
 COMMENT ON TABLE food_portions IS 'Standard portion sizes and weights for foods';
 COMMENT ON TABLE food_nutrients IS 'Junction table storing nutrient amounts for each food';
-
+COMMENT ON TABLE users IS 'User accounts with authentication credentials';
+COMMENT ON TABLE recipes IS 'User-authored recipes with instructions and metadata';
+COMMENT ON TABLE ingredients IS 'Recipe ingredients linking recipes to foods with quantities and units';
