@@ -4,7 +4,12 @@ import {
   getRecipeById,
   createRecipe,
   updateRecipe,
-  deleteRecipe
+  deleteRecipe,
+  createIngredient,
+  getIngredientById,
+  getIngredientsByRecipeId,
+  updateIngredient,
+  deleteIngredient
 } from './db';
 import express from 'express';
 import cors from 'cors';
@@ -137,6 +142,173 @@ app.delete('/api/recipes/:id', async (req, res) => {
     const deleted = await deleteRecipe(parseInt(id));
     if (!deleted) {
       return res.status(404).json({ error: 'Recipe not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Ingredients endpoints
+app.get('/api/recipes/:recipeId/ingredients', async (req, res) => {
+  const { recipeId } = req.params;
+
+  // Verify recipe exists
+  try {
+    const recipe = await getRecipeById(parseInt(recipeId));
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Database error' });
+  }
+
+  try {
+    const ingredients = await getIngredientsByRecipeId(parseInt(recipeId));
+    res.json({ ingredients });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/api/recipes/:recipeId/ingredients', async (req, res) => {
+  const { recipeId } = req.params;
+  const { food_id, gram_weight, measure_unit_id, quantity } = req.body;
+
+  if (!food_id || gram_weight === undefined) {
+    return res.status(400).json({ error: 'Fields "food_id" and "gram_weight" are required' });
+  }
+
+  // Verify recipe exists
+  try {
+    const recipe = await getRecipeById(parseInt(recipeId));
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Database error' });
+  }
+
+  try {
+    const ingredient = await createIngredient(
+      parseInt(recipeId),
+      parseInt(food_id),
+      parseFloat(gram_weight),
+      inputToNumber(measure_unit_id),
+      quantity !== undefined ? parseFloat(quantity) : null
+    );
+    res.status(201).json(ingredient);
+  } catch (error: unknown) {
+    const pgError = error as { code: string; constraint?: string };
+    if (pgError.code === '23503') {
+      // Foreign key violation
+      if (pgError.constraint?.includes('food_id')) {
+        return res.status(404).json({ error: 'Food not found' });
+      }
+      if (pgError.constraint?.includes('measure_unit_id')) {
+        return res.status(404).json({ error: 'Measure unit not found' });
+      }
+      return res.status(400).json({ error: 'Invalid reference' });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.put('/api/recipes/:recipeId/ingredients/:ingredientId', async (req, res) => {
+  const { recipeId, ingredientId } = req.params;
+  const { food_id, gram_weight, measure_unit_id, quantity } = req.body;
+
+  // Verify recipe exists
+  try {
+    const recipe = await getRecipeById(parseInt(recipeId));
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Database error' });
+  }
+
+  // Verify ingredient exists and belongs to recipe
+  try {
+    const existingIngredient = await getIngredientById(parseInt(ingredientId));
+    if (!existingIngredient) {
+      return res.status(404).json({ error: 'Ingredient not found' });
+    }
+    if (existingIngredient.recipe_id !== parseInt(recipeId)) {
+      return res.status(404).json({ error: 'Ingredient not found in this recipe' });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Database error' });
+  }
+
+  try {
+    const ingredient = await updateIngredient(
+      parseInt(ingredientId),
+      food_id !== undefined ? parseInt(food_id) : null,
+      gram_weight !== undefined ? parseFloat(gram_weight) : null,
+      measure_unit_id !== undefined ? inputToNumber(measure_unit_id) : null,
+      quantity !== undefined ? parseFloat(quantity) : null
+    );
+    if (!ingredient) {
+      return res.status(404).json({ error: 'Ingredient not found' });
+    }
+    res.json(ingredient);
+  } catch (error: unknown) {
+    const pgError = error as { code: string; constraint?: string };
+    if (pgError.code === '23503') {
+      // Foreign key violation
+      if (pgError.constraint?.includes('food_id')) {
+        return res.status(404).json({ error: 'Food not found' });
+      }
+      if (pgError.constraint?.includes('measure_unit_id')) {
+        return res.status(404).json({ error: 'Measure unit not found' });
+      }
+      return res.status(400).json({ error: 'Invalid reference' });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.delete('/api/recipes/:recipeId/ingredients/:ingredientId', async (req, res) => {
+  const { recipeId, ingredientId } = req.params;
+
+  // Verify recipe exists
+  try {
+    const recipe = await getRecipeById(parseInt(recipeId));
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Database error' });
+  }
+
+  // Verify ingredient exists and belongs to recipe
+  try {
+    const existingIngredient = await getIngredientById(parseInt(ingredientId));
+    if (!existingIngredient) {
+      return res.status(404).json({ error: 'Ingredient not found' });
+    }
+    if (existingIngredient.recipe_id !== parseInt(recipeId)) {
+      return res.status(404).json({ error: 'Ingredient not found in this recipe' });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Database error' });
+  }
+
+  try {
+    const deleted = await deleteIngredient(parseInt(ingredientId));
+    if (!deleted) {
+      return res.status(404).json({ error: 'Ingredient not found' });
     }
     res.status(204).send();
   } catch (error) {

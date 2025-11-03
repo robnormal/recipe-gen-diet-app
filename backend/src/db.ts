@@ -45,7 +45,7 @@ export async function searchFoods(words: string[], limit: number, offset: number
       `SELECT COUNT(*) 
        FROM foods 
        WHERE to_tsvector('english', description) @@ plainto_tsquery('english', $1)`,
-      [q]
+      [searchQuery]
     );
 
     return {
@@ -156,6 +156,98 @@ export async function deleteRecipe(id: number) {
   const pool = dbPool();
   try {
     const result = await pool.query(`DELETE FROM recipes WHERE id = $1 RETURNING id`, [id]);
+    return result.rowCount !== 0;
+  } finally {
+    await pool.end();
+  }
+}
+
+// Ingredient functions
+export async function createIngredient(
+  recipe_id: number,
+  food_id: number,
+  gram_weight: number,
+  measure_unit_id: number | null = null,
+  quantity: number | null = null
+) {
+  const pool = dbPool();
+  try {
+    const result = await pool.query(
+      `INSERT INTO ingredients (recipe_id, food_id, measure_unit_id, quantity, gram_weight)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, recipe_id, food_id, measure_unit_id, quantity, gram_weight,
+                 created_at, updated_at`,
+      [recipe_id, food_id, measure_unit_id, quantity, gram_weight]
+    );
+    return result.rows[0];
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function getIngredientById(id: number) {
+  const pool = dbPool();
+  try {
+    const result = await pool.query(
+      `SELECT id, recipe_id, food_id, measure_unit_id, quantity, gram_weight,
+              created_at, updated_at
+       FROM ingredients WHERE id = $1`,
+      [id]
+    );
+    return result.rowCount === 0 ? null : result.rows[0];
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function getIngredientsByRecipeId(recipe_id: number) {
+  const pool = dbPool();
+  try {
+    const result = await pool.query(
+      `SELECT id, recipe_id, food_id, measure_unit_id, quantity, gram_weight,
+              created_at, updated_at
+       FROM ingredients
+       WHERE recipe_id = $1
+       ORDER BY id`,
+      [recipe_id]
+    );
+    return result.rows;
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function updateIngredient(
+  id: number,
+  food_id: number | null = null,
+  gram_weight: number | null = null,
+  measure_unit_id: number | null = null,
+  quantity: number | null = null
+) {
+  const pool = dbPool();
+  try {
+    const result = await pool.query(
+      `UPDATE ingredients SET
+         food_id = COALESCE($2, food_id),
+         gram_weight = COALESCE($3, gram_weight),
+         measure_unit_id = COALESCE($4, measure_unit_id),
+         quantity = COALESCE($5, quantity),
+         updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, recipe_id, food_id, measure_unit_id, quantity, gram_weight,
+                 created_at, updated_at`,
+      [id, food_id, gram_weight, measure_unit_id, quantity]
+    );
+    return result.rowCount === 0 ? null : result.rows[0];
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function deleteIngredient(id: number) {
+  const pool = dbPool();
+  try {
+    const result = await pool.query(`DELETE FROM ingredients WHERE id = $1 RETURNING id`, [id]);
     return result.rowCount !== 0;
   } finally {
     await pool.end();
