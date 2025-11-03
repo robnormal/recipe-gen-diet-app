@@ -1,12 +1,10 @@
 import { Pool, PoolClient } from 'pg';
+import { dbPool, CALORIE_NUTRIENT_NUMBERS } from './db'
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 
 dotenv.config();
-
-// nutrient.number for calories (there's more than one possibility)
-const CALORIE_NUTRIENT_NUMBERS = ['208'];
 
 interface NutrientData {
   id: number;
@@ -277,7 +275,7 @@ async function importFood(pool: Pool, food: FoodItem): Promise<void> {
 
           // Record calorie density, if this nutrient is calories
           // TODO: This will ignore all but the last "energy" nutrient, if multiple are present
-          if (foodNutrient.nutrient && CALORIE_NUTRIENT_NUMBERS.includes(foodNutrient.nutrient.number)) {
+          if (foodNutrient.nutrient && CALORIE_NUTRIENT_NUMBERS.indexOf(foodNutrient.nutrient.number) >= 0) {
             // Nutrient amounts are per 100g. Let's make life easier on ourselves
             calorieDensity = foodNutrient.amount / 100.0;
           }
@@ -347,17 +345,6 @@ async function importFood(pool: Pool, food: FoodItem): Promise<void> {
   }
 }
 
-// Database connection configuration
-function dbConnection(): Pool {
-  return new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432'),
-    database: process.env.DB_NAME || 'recipe_diet_db',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || '',
-  });
-}
-
 function getFileContent(filepath: string): string {
   // Read and parse JSON file
   const filePath = path.resolve(filepath);
@@ -369,16 +356,20 @@ function getFileContent(filepath: string): string {
 }
 
 function parseFoods(fileContent: string) {
-  let foodObj: { 'FoundationFoods': FoodItem[] };
+  let foodObj: Record<string, FoodItem[]>
   try {
     foodObj = JSON.parse(fileContent);
   } catch (parseError) {
     throw new Error(`Failed to parse JSON file: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
   }
-  const foods = foodObj.FoundationFoods;
 
-  if (!Array.isArray(foods)) {
-    throw new Error('JSON file must contain an array of food items');
+  const foods: FoodItem[] = [];
+  for (const key in foodObj) {
+    foods.push(...foodObj[key]);
+
+    if (!Array.isArray(foods)) {
+      throw new Error('JSON file must contain an array of food items');
+    }
   }
 
   return foods;
@@ -388,7 +379,7 @@ function parseFoods(fileContent: string) {
  * Main import function
  */
 async function importFoods(jsonFilePath: string): Promise<void> {
-  const pool = dbConnection();
+  const pool = dbPool();
 
   try {
     // Test connection
