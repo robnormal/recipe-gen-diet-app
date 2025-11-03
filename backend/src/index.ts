@@ -1,4 +1,11 @@
-import { dbPool } from './db'
+import {
+  searchFoods,
+  listRecipes,
+  getRecipeById,
+  createRecipe,
+  updateRecipe,
+  deleteRecipe
+} from './db';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -11,55 +18,130 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-app.get('/api/health', (req, res) => {
+function inputToNumber(x: unknown) {
+  return typeof x === 'number' ? x : x ? parseInt(x as string) : null;
+}
+
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', message: 'Backend API is running' });
 });
 
 app.get('/api/foods/search', async (req, res) => {
-  const { q, limit = 20, offset = 0 } = req.query;
-  
-  if (!q || typeof q !== 'string') {
+  const queryString = req.query.q;
+  if (!queryString || typeof queryString !== 'string') {
     return res.status(400).json({ error: 'Query parameter "q" is required' });
   }
 
-  const pool = dbPool();
+  const words = queryString.trim().split(/\s+/);
+  const limit = inputToNumber(req.query.limit) || 20;
+  const offset = inputToNumber(req.query.offset) || 0;
 
   try {
-    // Create search query using ts_query (handles multiple words)
-    const searchQuery = q.trim().split(/\s+/).join(' & ');
-
-    const result = await pool.query(
-      `SELECT 
-        f.description, f.calorie_density,
-        ts_rank(to_tsvector('english', f.description), 
-                plainto_tsquery('english', $1)) as rank
-       FROM foods f
-       WHERE to_tsvector('english', f.description) @@ plainto_tsquery('english', $1)
-       ORDER BY rank DESC, f.description
-       LIMIT $2 OFFSET $3`,
-      [searchQuery, limit, offset]
-    );
-
-    const countResult = await pool.query(
-      `SELECT COUNT(*) 
-       FROM foods 
-       WHERE to_tsvector('english', description) @@ plainto_tsquery('english', $1)`,
-      [q]
-    );
-
-    res.json({
-      results: result.rows,
-      pagination: {
-        total: parseInt(countResult.rows[0].count),
-        limit: parseInt(limit as string),
-        offset: parseInt(offset as string)
-      }
-    });
+    const { results, total } = await searchFoods(words, limit, offset);
+    
+    res.json({ results, pagination: { total, limit, offset } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Database error' });
-  } finally {
-    await pool.end();
+  }
+});
+
+
+// Recipes CRUD (recipe only; ingredients are not handled here)
+app.get('/api/recipes', async (req, res) => {
+  const userId = inputToNumber(req.query.userId);
+  if (!userId) {
+    return res.status(400).json({ error: 'Query parameter "userId" is required' });
+  }
+
+  const limit = inputToNumber(req.query.limit) || 20;
+  const offset = inputToNumber(req.query.offset) || 0;
+
+  try {
+    const { results, total } = await listRecipes(userId, limit, offset);
+
+    res.json({ results, pagination: { total, limit, offset } });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.get('/api/recipes/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const recipe = await getRecipeById(parseInt(id));
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+    res.json(recipe);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/api/recipes', async (req, res) => {
+  const { user_id, name, description, instructions, servings, total_time_minutes } = req.body;
+
+  if (!user_id || !name) {
+    return res.status(400).json({ error: 'Fields "user_id" and "name" are required' });
+  }
+
+  try {
+    const recipe = await createRecipe(
+      parseInt(user_id),
+      name,
+      description ?? null,
+      instructions ?? null,
+      inputToNumber(servings),
+      inputToNumber(total_time_minutes)
+    );
+    res.status(201).json(recipe);
+  } catch (error: unknown) {
+    if ((error as { code: string })?.code === '23505') {
+      return res.status(409).json({ error: 'Recipe with that name already exists for this user' });
+    }
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.put('/api/recipes/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, description, instructions, servings, total_time_minutes } = req.body;
+
+  try {
+    const recipe = await updateRecipe(
+      parseInt(id),
+      name ?? null,
+      description ?? null,
+      instructions ?? null,
+      inputToNumber(servings),
+      inputToNumber(total_time_minutes)
+    );
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+    res.json(recipe);
+  } catch (error: unknown) {
+    if ((error as { code: string })?.code === '23505') {
+      return res.status(409).json({ error: 'Recipe with that name already exists for this user' });
+    }
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.delete('/api/recipes/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const deleted = await deleteRecipe(parseInt(id));
+    if (!deleted) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
   }
 });
 
