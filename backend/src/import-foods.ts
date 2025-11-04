@@ -1,5 +1,6 @@
 import { Pool, PoolClient } from 'pg';
-import { dbPool, CALORIE_NUTRIENT_NUMBERS } from './db'
+import { pool } from './db_connection'
+import { CALORIE_NUTRIENT_NUMBERS } from './db'
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
@@ -379,8 +380,6 @@ function parseFoods(fileContent: string) {
  * Main import function
  */
 async function importFoods(jsonFilePath: string): Promise<void> {
-  const pool = dbPool();
-
   try {
     // Test connection
     await pool.query('SELECT 1');
