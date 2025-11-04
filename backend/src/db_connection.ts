@@ -1,4 +1,4 @@
-import { Pool, PoolConfig } from "pg";
+import {Pool, PoolClient, PoolConfig} from "pg";
 
 declare global {
   // allow global caching in dev
@@ -25,6 +25,13 @@ if (process.env.NODE_ENV !== "production") {
 
 // Convenience wrapper so callers don't import Pool everywhere.
 export const query = pool.query.bind(pool);
+
+export async function withClient<T>(fn: (client: PoolClient) => T) {
+  const client = await pool.connect();
+  const result = await fn(client);
+  client.release();
+  return result;
+}
 
 // Optional: attach shutdown hooks once.
 let hooksAttached = false;

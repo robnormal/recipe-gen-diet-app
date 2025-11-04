@@ -1,15 +1,16 @@
-import { query } from './db_connection';
+import {query, withClient} from './db_connection';
 
 // nutrient.number for calories (there's more than one possibility)
 export const CALORIE_NUTRIENT_NUMBERS = ['208'];
 
 // Food search functions
 export async function searchFoods(words: string[], limit: number, offset: number) {
-  // Create search query using ts_query (handles multiple words)
-  const searchQuery = words.join(' & ');
+  return withClient(async client => {
+    // Create search query using ts_query (handles multiple words)
+    const searchQuery = words.join(' & ');
 
-  const result = await query(
-    `SELECT
+    const result = await client.query(
+      `SELECT
          f.description, f.calorie_density,
          ts_rank(to_tsvector('english', f.description),
                  plainto_tsquery('english', $1)) as rank
@@ -17,20 +18,21 @@ export async function searchFoods(words: string[], limit: number, offset: number
      WHERE to_tsvector('english', f.description) @@ plainto_tsquery('english', $1)
      ORDER BY rank DESC, f.description
      LIMIT $2 OFFSET $3`,
-    [searchQuery, limit, offset]
-  );
+      [searchQuery, limit, offset]
+    );
 
-  const countResult = await query(
-    `SELECT COUNT(*)
+    const countResult = await client.query(
+      `SELECT COUNT(*)
      FROM foods
      WHERE to_tsvector('english', description) @@ plainto_tsquery('english', $1)`,
-    [searchQuery]
-  );
+      [searchQuery]
+    );
 
-  return {
-    results: result.rows,
-    total: parseInt(countResult.rows[0].count)
-  };
+    return {
+      results: result.rows,
+      total: parseInt(countResult.rows[0].count)
+    };
+  });
 }
 
 // Recipe CRUD functions
