@@ -12,12 +12,14 @@
     "import-foods": "tsx src/import-foods.ts --env-file=.env"
   },
   "dependencies": {
+    "bcryptjs": "*",
     "cors": "*",
     "express": "*",
     "pg": "*"
   },
   "devDependencies": {
     "@eslint/js": "*",
+    "@types/bcryptjs": "*",
     "@types/cors": "*",
     "@types/express": "*",
     "@types/jest": "*",
