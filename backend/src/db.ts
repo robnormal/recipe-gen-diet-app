@@ -1,4 +1,5 @@
 import {query, withClient} from './db_connection';
+import bcrypt from 'bcryptjs';
 
 // nutrient.number for calories (there's more than one possibility)
 export const CALORIE_NUTRIENT_NUMBERS = ['208'];
@@ -33,6 +34,22 @@ export async function searchFoods(words: string[], limit: number, offset: number
       total: parseInt(countResult.rows[0].count)
     };
   });
+}
+
+// User functions
+export async function createUser(
+  email: string,
+  username: string,
+  password: string
+) {
+  const passwordHash = await bcrypt.hash(password, 10);
+  const result = await query(
+    `INSERT INTO users (email, username, password_hash)
+     VALUES ($1, $2, $3)
+     RETURNING id, email, username, created_at, updated_at`,
+    [email, username, passwordHash]
+  );
+  return result.rows[0];
 }
 
 // Recipe CRUD functions

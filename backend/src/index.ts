@@ -1,5 +1,6 @@
 import {
   searchFoods,
+  createUser,
   listRecipes,
   getRecipeById,
   createRecipe,
@@ -47,6 +48,51 @@ app.get('/api/foods/search', async (req, res) => {
   }
 });
 
+// User registration
+app.post('/api/users', async (req, res) => {
+  const { email, username, password } = req.body;
+
+  if (!email || !username || !password) {
+    return res.status(400).json({ error: 'Fields "email", "username", and "password" are required' });
+  }
+
+  // Basic validation
+  if (typeof email !== 'string' || !email.includes('@')) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+  if (typeof username !== 'string' || username.trim().length < 3) {
+    return res.status(400).json({ error: 'Username must be at least 3 characters long' });
+  }
+  if (typeof password !== 'string' || password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+  }
+
+  try {
+    const user = await createUser(email.trim(), username.trim(), password);
+    // Don't return password hash
+    res.status(201).json({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      created_at: user.created_at,
+      updated_at: user.updated_at
+    });
+  } catch (error: unknown) {
+    const pgError = error as { code: string; constraint?: string };
+    if (pgError.code === '23505') {
+      // Unique constraint violation
+      if (pgError.constraint?.includes('email')) {
+        return res.status(409).json({ error: 'Email already exists' });
+      }
+      if (pgError.constraint?.includes('username')) {
+        return res.status(409).json({ error: 'Username already exists' });
+      }
+      return res.status(409).json({ error: 'User already exists' });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
 
 // Recipes CRUD (recipe only; ingredients are not handled here)
 app.get('/api/recipes', async (req, res) => {

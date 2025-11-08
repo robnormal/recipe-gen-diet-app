@@ -16,6 +16,12 @@ interface SearchResponse {
   };
 }
 
+interface UserRegistrationData {
+  email: string;
+  username: string;
+  password: string;
+}
+
 function App() {
   const [healthStatus, setHealthStatus] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -23,6 +29,15 @@ function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [totalResults, setTotalResults] = useState<number>(0);
+  const [showRegistrationForm, setShowRegistrationForm] = useState<boolean>(false);
+  const [registrationData, setRegistrationData] = useState<UserRegistrationData>({
+    email: '',
+    username: '',
+    password: ''
+  });
+  const [isRegistering, setIsRegistering] = useState<boolean>(false);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
+  const [registrationSuccess, setRegistrationSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/health')
@@ -65,10 +80,130 @@ function App() {
     }
   };
 
+  const handleRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsRegistering(true);
+    setRegistrationError(null);
+    setRegistrationSuccess(null);
+
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(registrationData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create account');
+      }
+
+      const user = await response.json();
+      setRegistrationSuccess(`Account created successfully! Welcome, ${user.username}!`);
+      setRegistrationData({ email: '', username: '', password: '' });
+      setShowRegistrationForm(false);
+    } catch (err) {
+      setRegistrationError(err instanceof Error ? err.message : 'Failed to create account. Please try again.');
+      console.error('Registration error:', err);
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
   return (
     <div className="App">
       <h1>Recipe Diet App</h1>
       <p className="health-status">{healthStatus || 'Connecting to backend...'}</p>
+
+      <div className="user-section">
+        {!showRegistrationForm ? (
+          <button
+            onClick={() => setShowRegistrationForm(true)}
+            className="register-button"
+          >
+            Create Account
+          </button>
+        ) : (
+          <div className="registration-container">
+            <h2>Create New Account</h2>
+            <form onSubmit={handleRegistration} className="registration-form">
+              <div className="form-group">
+                <label htmlFor="email">Email:</label>
+                <input
+                  id="email"
+                  type="email"
+                  value={registrationData.email}
+                  onChange={(e) =>
+                    setRegistrationData({ ...registrationData, email: e.target.value })
+                  }
+                  required
+                  className="form-input"
+                  placeholder="Enter your email"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="username">Username:</label>
+                <input
+                  id="username"
+                  type="text"
+                  value={registrationData.username}
+                  onChange={(e) =>
+                    setRegistrationData({ ...registrationData, username: e.target.value })
+                  }
+                  required
+                  minLength={3}
+                  className="form-input"
+                  placeholder="Enter your username (min 3 characters)"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="password">Password:</label>
+                <input
+                  id="password"
+                  type="password"
+                  value={registrationData.password}
+                  onChange={(e) =>
+                    setRegistrationData({ ...registrationData, password: e.target.value })
+                  }
+                  required
+                  minLength={6}
+                  className="form-input"
+                  placeholder="Enter your password (min 6 characters)"
+                />
+              </div>
+              {registrationError && (
+                <p className="error-message">{registrationError}</p>
+              )}
+              {registrationSuccess && (
+                <p className="success-message">{registrationSuccess}</p>
+              )}
+              <div className="form-actions">
+                <button
+                  type="submit"
+                  disabled={isRegistering}
+                  className="submit-button"
+                >
+                  {isRegistering ? 'Creating Account...' : 'Create Account'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRegistrationForm(false);
+                    setRegistrationData({ email: '', username: '', password: '' });
+                    setRegistrationError(null);
+                    setRegistrationSuccess(null);
+                  }}
+                  className="cancel-button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
 
       <div className="search-container">
         <form onSubmit={handleSearch} className="search-form">
