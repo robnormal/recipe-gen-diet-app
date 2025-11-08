@@ -3,7 +3,6 @@ import { pool } from './db_connection'
 import { CALORIE_NUTRIENT_NUMBERS } from './db'
 import fs from 'fs';
 import path from 'path';
-import dotenv from 'dotenv';
 
 dotenv.config();
 
