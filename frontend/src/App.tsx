@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import './App.css';
 
 interface FoodResult {
@@ -35,6 +35,27 @@ interface LoginData {
   password: string;
 }
 
+interface Recipe {
+  id: number;
+  user_id: number;
+  name: string;
+  description: string | null;
+  instructions: string | null;
+  servings: number | null;
+  total_time_minutes: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface RecipesResponse {
+  results: Recipe[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+}
+
 function App() {
   // Authentication state
   const [user, setUser] = useState<User | null>(null);
@@ -67,6 +88,18 @@ function App() {
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  // Recipe creation state
+  const [showRecipeForm, setShowRecipeForm] = useState<boolean>(false);
+  const [recipeName, setRecipeName] = useState<string>('');
+  const [isCreatingRecipe, setIsCreatingRecipe] = useState<boolean>(false);
+  const [recipeError, setRecipeError] = useState<string | null>(null);
+  const [recipeSuccess, setRecipeSuccess] = useState<string | null>(null);
+
+  // Recipes list state
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [isLoadingRecipes, setIsLoadingRecipes] = useState<boolean>(false);
+  const [recipesError, setRecipesError] = useState<string | null>(null);
+
   // Check authentication status on mount
   const checkAuthStatus = async () => {
     try {
@@ -91,10 +124,39 @@ function App() {
     }
   };
 
+  const fetchRecipes = useCallback(async () => {
+    setIsLoadingRecipes(true);
+    setRecipesError(null);
+
+    try {
+      const response = await fetch('/api/recipes?limit=100&offset=0', {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setUser(null);
+          throw new Error('Session expired. Please login again.');
+        }
+        throw new Error('Failed to fetch recipes');
+      }
+
+      const data: RecipesResponse = await response.json();
+      setRecipes(data.results);
+    } catch (err) {
+      setRecipesError(err instanceof Error ? err.message : 'Failed to load recipes');
+      console.error('Error fetching recipes:', err);
+    } finally {
+      setIsLoadingRecipes(false);
+    }
+  }, []);
+
   useEffect(() => {
     checkAuthStatus();
+  }, []);
 
-    // Only fetch health status if authenticated
+  useEffect(() => {
+    // Only fetch health status and recipes if authenticated
     if (user) {
       fetch('/api/health', {
         credentials: 'include'
@@ -102,6 +164,47 @@ function App() {
         .then((res) => res.json())
         .then((data) => setHealthStatus(data.message))
         .catch((err) => console.error('Failed to fetch health status:', err));
+
+      let cancelled = false;
+      setIsLoadingRecipes(true);
+      setRecipesError(null);
+
+      fetch('/api/recipes?limit=100&offset=0', {
+        credentials: 'include'
+      })
+        .then(async (response) => {
+          if (cancelled) return;
+          
+          if (!response.ok) {
+            if (response.status === 401) {
+              setUser(null);
+              throw new Error('Session expired. Please login again.');
+            }
+            throw new Error('Failed to fetch recipes');
+          }
+
+          const data: RecipesResponse = await response.json();
+          if (!cancelled) {
+            setRecipes(data.results);
+          }
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            setRecipesError(err instanceof Error ? err.message : 'Failed to load recipes');
+            console.error('Error fetching recipes:', err);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setIsLoadingRecipes(false);
+          }
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    } else {
+      setRecipes([]);
     }
   }, [user]);
 
@@ -227,6 +330,45 @@ function App() {
       console.error('Registration error:', err);
     } finally {
       setIsRegistering(false);
+    }
+  };
+
+  const handleCreateRecipe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreatingRecipe(true);
+    setRecipeError(null);
+    setRecipeSuccess(null);
+
+    try {
+      const response = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ name: recipeName.trim() }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setUser(null);
+          throw new Error('Session expired. Please login again.');
+        }
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create recipe');
+      }
+
+      const recipeData = await response.json();
+      setRecipeSuccess(`Recipe "${recipeData.name}" created successfully!`);
+      setRecipeName('');
+      setShowRecipeForm(false);
+      // Refresh the recipes list
+      await fetchRecipes();
+    } catch (err) {
+      setRecipeError(err instanceof Error ? err.message : 'Failed to create recipe. Please try again.');
+      console.error('Recipe creation error:', err);
+    } finally {
+      setIsCreatingRecipe(false);
     }
   };
 
@@ -406,6 +548,62 @@ function App() {
       </div>
       <p className="health-status">{healthStatus || 'Connecting to backend...'}</p>
 
+      <div className="recipe-section">
+        {!showRecipeForm ? (
+          <button
+            onClick={() => setShowRecipeForm(true)}
+            className="create-recipe-button"
+          >
+            Create New Recipe
+          </button>
+        ) : (
+          <div className="recipe-form-container">
+            <h2>Create New Recipe</h2>
+            <form onSubmit={handleCreateRecipe} className="recipe-form">
+              <div className="form-group">
+                <label htmlFor="recipe-name">Recipe Name:</label>
+                <input
+                  id="recipe-name"
+                  type="text"
+                  value={recipeName}
+                  onChange={(e) => setRecipeName(e.target.value)}
+                  required
+                  className="form-input"
+                  placeholder="Enter recipe name"
+                />
+              </div>
+              {recipeError && (
+                <p className="error-message">{recipeError}</p>
+              )}
+              {recipeSuccess && (
+                <p className="success-message">{recipeSuccess}</p>
+              )}
+              <div className="form-actions">
+                <button
+                  type="submit"
+                  disabled={isCreatingRecipe}
+                  className="submit-button"
+                >
+                  {isCreatingRecipe ? 'Creating...' : 'Create Recipe'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRecipeForm(false);
+                    setRecipeName('');
+                    setRecipeError(null);
+                    setRecipeSuccess(null);
+                  }}
+                  className="cancel-button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+
       <div className="search-container">
         <form onSubmit={handleSearch} className="search-form">
           <input
@@ -446,6 +644,39 @@ function App() {
         ) : searchQuery && !isLoading && !error ? (
           <p className="no-results">No results found. Try a different search term.</p>
         ) : null}
+      </div>
+
+      <div className="recipes-section">
+        <h2>My Recipes</h2>
+        {isLoadingRecipes ? (
+          <p className="loading-message">Loading recipes...</p>
+        ) : recipesError ? (
+          <p className="error-message">{recipesError}</p>
+        ) : recipes.length === 0 ? (
+          <p className="no-results">No recipes yet. Create your first recipe above!</p>
+        ) : (
+          <ul className="recipes-list">
+            {recipes.map((recipe) => (
+              <li key={recipe.id} className="recipe-item">
+                <div className="recipe-name">{recipe.name}</div>
+                {recipe.description && (
+                  <div className="recipe-description">{recipe.description}</div>
+                )}
+                <div className="recipe-meta">
+                  {recipe.servings && (
+                    <span className="recipe-servings">{recipe.servings} serving{recipe.servings !== 1 ? 's' : ''}</span>
+                  )}
+                  {recipe.total_time_minutes && (
+                    <span className="recipe-time">{recipe.total_time_minutes} min</span>
+                  )}
+                  <span className="recipe-date">
+                    Created: {new Date(recipe.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
