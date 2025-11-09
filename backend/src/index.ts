@@ -94,8 +94,7 @@ function asyncHandler(
 ) {
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch((error) => {
-      console.error(error);
-      sendError(res, 500, 'Database error');
+      sendGenericError(error, res);
     });
   };
 }
@@ -119,8 +118,7 @@ async function requireRecipe(req: express.Request, res: express.Response, next: 
     }
     next();
   } catch (error) {
-    console.error(error);
-    sendError(res, 500, 'Database error');
+    sendGenericError(error, res);
   }
 }
 
@@ -138,8 +136,7 @@ async function requireIngredient(req: express.Request, res: express.Response, ne
     }
     next();
   } catch (error) {
-    console.error(error);
-    sendError(res, 500, 'Database error');
+    sendGenericError(error, res);
   }
 }
 
@@ -252,8 +249,7 @@ app.post('/api/users', async (req, res) => {
     })) {
       return;
     }
-    console.error(error);
-    sendError(res, 500, 'Database error');
+    sendGenericError(error, res);
   }
 });
 
@@ -347,6 +343,11 @@ app.get('/api/recipes/:recipeId/ingredients', requireAuth, requireRecipe, asyncH
   res.json({ ingredients });
 }));
 
+function sendGenericError(error: unknown, res: express.Response) {
+  console.error(error);
+  sendError(res, 500, 'Database error');
+}
+
 app.post('/api/recipes/:recipeId/ingredients', requireAuth, requireRecipe, async (req, res) => {
   const { recipeId } = req.params;
   const { food_id, gram_weight, measure_unit_id, quantity } = req.body;
@@ -372,8 +373,7 @@ app.post('/api/recipes/:recipeId/ingredients', requireAuth, requireRecipe, async
     })) {
       return;
     }
-    console.error(error);
-    sendError(res, 500, 'Database error');
+    sendGenericError(error, res);
   }
 });
 
@@ -401,8 +401,7 @@ app.put('/api/recipes/:recipeId/ingredients/:ingredientId', requireAuth, require
     })) {
       return;
     }
-    console.error(error);
-    sendError(res, 500, 'Database error');
+    sendGenericError(error, res);
   }
 });
 
