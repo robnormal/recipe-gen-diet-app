@@ -11,6 +11,7 @@ import {
   createIngredient,
   getIngredientById,
   getIngredientsByRecipeId,
+  getIngredientsWithFoods,
   updateIngredient,
   deleteIngredient
 } from './db';
@@ -339,7 +340,7 @@ app.delete('/api/recipes/:id', requireAuth, asyncHandler(async (req, res) => {
 app.get('/api/recipes/:recipeId/ingredients', requireAuth, requireRecipe, asyncHandler(async (req, res) => {
   const { recipeId } = req.params;
 
-  const ingredients = await getIngredientsByRecipeId(parseInt(recipeId));
+  const ingredients = await getIngredientsWithFoods(parseInt(recipeId));
   res.json({ ingredients });
 }));
 

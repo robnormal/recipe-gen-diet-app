@@ -12,7 +12,7 @@ export async function searchFoods(words: string[], limit: number, offset: number
 
     const result = await client.query(
       `SELECT
-         f.description, f.calorie_density,
+         f.id, f.description, f.calorie_density,
          ts_rank(to_tsvector('english', f.description),
                  plainto_tsquery('english', $1)) as rank
      FROM foods f
@@ -209,6 +209,19 @@ export async function getIngredientsByRecipeId(recipe_id: number) {
        FROM ingredients
        WHERE recipe_id = $1
        ORDER BY id`,
+    [recipe_id]
+  );
+  return result.rows;
+}
+
+export async function getIngredientsWithFoods(recipe_id: number) {
+  const result = await query(
+    `SELECT i.id, i.recipe_id, i.food_id, i.measure_unit_id, i.quantity, i.gram_weight,
+              i.created_at, i.updated_at, f.description as food_description
+       FROM ingredients i
+       JOIN foods f ON i.food_id = f.id
+       WHERE i.recipe_id = $1
+       ORDER BY i.id`,
     [recipe_id]
   );
   return result.rows;
