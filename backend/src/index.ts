@@ -1,6 +1,8 @@
 import {
   searchFoods,
   createUser,
+  authenticateUser,
+  getUserById,
   listRecipes,
   getRecipeById,
   createRecipe,
@@ -14,21 +16,127 @@ import {
 } from './db';
 import express from 'express';
 import cors from 'cors';
+import session from 'express-session';
+import connectPgSimple from 'connect-pg-simple';
+import { pool } from './db_connection';
+
+// Extend express-session types to include userId
+declare module 'express-session' {
+  interface SessionData {
+    userId?: number;
+  }
+}
 
 const PORT = process.env.PORT;
 const app = express();
-app.use(cors());
+
+// Configure CORS to allow credentials
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
+
+// Configure express-session with PostgreSQL store
+const PgSession = connectPgSimple(session);
+const sessionSecret = process.env.SESSION_SECRET || 'change-this-secret-in-production';
+
+app.use(session({
+  store: new PgSession({
+    pool: pool,
+    tableName: 'session'
+  }),
+  secret: sessionSecret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  }
+}));
 
 function inputToNumber(x: unknown) {
   return typeof x === 'number' ? x : x ? parseInt(x as string) : null;
+}
+
+// Authentication middleware
+function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  next();
 }
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', message: 'Backend API is running' });
 });
 
-app.get('/api/foods/search', async (req, res) => {
+// Authentication endpoints
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Fields "email" and "password" are required' });
+  }
+
+  if (typeof email !== 'string' || !email.includes('@')) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  try {
+    const user = await authenticateUser(email.trim(), password);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Store userId in session
+    req.session.userId = user.id;
+
+    res.json({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      created_at: user.created_at,
+      updated_at: user.updated_at
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Error destroying session:', err);
+      return res.status(500).json({ error: 'Failed to logout' });
+    }
+    res.json({ message: 'Logged out successfully' });
+  });
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const user = await getUserById(req.session.userId);
+    if (!user) {
+      // Session references non-existent user, clear session
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.get('/api/foods/search', requireAuth, async (req, res) => {
   const queryString = req.query.q;
   if (!queryString || typeof queryString !== 'string') {
     return res.status(400).json({ error: 'Query parameter "q" is required' });
@@ -40,7 +148,7 @@ app.get('/api/foods/search', async (req, res) => {
 
   try {
     const { results, total } = await searchFoods(words, limit, offset);
-    
+
     res.json({ results, pagination: { total, limit, offset } });
   } catch (error) {
     console.error(error);
@@ -95,11 +203,8 @@ app.post('/api/users', async (req, res) => {
 });
 
 // Recipes CRUD (recipe only; ingredients are not handled here)
-app.get('/api/recipes', async (req, res) => {
-  const userId = inputToNumber(req.query.userId);
-  if (!userId) {
-    return res.status(400).json({ error: 'Query parameter "userId" is required' });
-  }
+app.get('/api/recipes', requireAuth, async (req, res) => {
+  const userId = req.session.userId!; // requireAuth ensures this exists
 
   const limit = inputToNumber(req.query.limit) || 20;
   const offset = inputToNumber(req.query.offset) || 0;
@@ -114,7 +219,7 @@ app.get('/api/recipes', async (req, res) => {
   }
 });
 
-app.get('/api/recipes/:id', async (req, res) => {
+app.get('/api/recipes/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   try {
     const recipe = await getRecipeById(parseInt(id));
@@ -128,16 +233,17 @@ app.get('/api/recipes/:id', async (req, res) => {
   }
 });
 
-app.post('/api/recipes', async (req, res) => {
-  const { user_id, name, description, instructions, servings, total_time_minutes } = req.body;
+app.post('/api/recipes', requireAuth, async (req, res) => {
+  const { name, description, instructions, servings, total_time_minutes } = req.body;
+  const user_id = req.session.userId!; // requireAuth ensures this exists
 
-  if (!user_id || !name) {
-    return res.status(400).json({ error: 'Fields "user_id" and "name" are required' });
+  if (!name) {
+    return res.status(400).json({ error: 'Field "name" is required' });
   }
 
   try {
     const recipe = await createRecipe(
-      parseInt(user_id),
+      user_id,
       name,
       description ?? null,
       instructions ?? null,
@@ -153,7 +259,7 @@ app.post('/api/recipes', async (req, res) => {
   }
 });
 
-app.put('/api/recipes/:id', async (req, res) => {
+app.put('/api/recipes/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { name, description, instructions, servings, total_time_minutes } = req.body;
 
@@ -178,7 +284,7 @@ app.put('/api/recipes/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/recipes/:id', async (req, res) => {
+app.delete('/api/recipes/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   try {
     const deleted = await deleteRecipe(parseInt(id));
@@ -193,7 +299,7 @@ app.delete('/api/recipes/:id', async (req, res) => {
 });
 
 // Ingredients endpoints
-app.get('/api/recipes/:recipeId/ingredients', async (req, res) => {
+app.get('/api/recipes/:recipeId/ingredients', requireAuth, async (req, res) => {
   const { recipeId } = req.params;
 
   // Verify recipe exists
@@ -216,7 +322,7 @@ app.get('/api/recipes/:recipeId/ingredients', async (req, res) => {
   }
 });
 
-app.post('/api/recipes/:recipeId/ingredients', async (req, res) => {
+app.post('/api/recipes/:recipeId/ingredients', requireAuth, async (req, res) => {
   const { recipeId } = req.params;
   const { food_id, gram_weight, measure_unit_id, quantity } = req.body;
 
@@ -261,7 +367,7 @@ app.post('/api/recipes/:recipeId/ingredients', async (req, res) => {
   }
 });
 
-app.put('/api/recipes/:recipeId/ingredients/:ingredientId', async (req, res) => {
+app.put('/api/recipes/:recipeId/ingredients/:ingredientId', requireAuth, async (req, res) => {
   const { recipeId, ingredientId } = req.params;
   const { food_id, gram_weight, measure_unit_id, quantity } = req.body;
 
@@ -319,7 +425,7 @@ app.put('/api/recipes/:recipeId/ingredients/:ingredientId', async (req, res) => 
   }
 });
 
-app.delete('/api/recipes/:recipeId/ingredients/:ingredientId', async (req, res) => {
+app.delete('/api/recipes/:recipeId/ingredients/:ingredientId', requireAuth, async (req, res) => {
   const { recipeId, ingredientId } = req.params;
 
   // Verify recipe exists

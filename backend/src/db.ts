@@ -52,6 +52,47 @@ export async function createUser(
   return result.rows[0];
 }
 
+export async function getUserByEmail(email: string) {
+  const result = await query(
+    `SELECT id, email, username, password_hash, created_at, updated_at
+     FROM users
+     WHERE email = $1`,
+    [email]
+  );
+  return result.rowCount === 0 ? null : result.rows[0];
+}
+
+export async function getUserById(id: number) {
+  const result = await query(
+    `SELECT id, email, username, created_at, updated_at
+     FROM users
+     WHERE id = $1`,
+    [id]
+  );
+  return result.rowCount === 0 ? null : result.rows[0];
+}
+
+export async function authenticateUser(email: string, password: string) {
+  const user = await getUserByEmail(email);
+  if (!user) {
+    return null;
+  }
+
+  const isValid = await bcrypt.compare(password, user.password_hash);
+  if (!isValid) {
+    return null;
+  }
+
+  // Return user without password_hash
+  return {
+    id: user.id,
+    email: user.email,
+    username: user.username,
+    created_at: user.created_at,
+    updated_at: user.updated_at
+  };
+}
+
 // Recipe CRUD functions
 export async function listRecipes(userId: number, limit: number, offset: number) {
   const listResult = await query(
