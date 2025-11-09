@@ -13,15 +13,19 @@
   },
   "dependencies": {
     "bcryptjs": "*",
+    "connect-pg-simple": "*",
     "cors": "*",
     "express": "*",
+    "express-session": "*",
     "pg": "*"
   },
   "devDependencies": {
     "@eslint/js": "*",
     "@types/bcryptjs": "*",
+    "@types/connect-pg-simple": "*",
     "@types/cors": "*",
     "@types/express": "*",
+    "@types/express-session": "*",
     "@types/jest": "*",
     "@types/node": "*",
     "@types/pg": "*",

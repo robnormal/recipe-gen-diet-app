@@ -119,6 +119,15 @@ CREATE TABLE ingredients (
     FOREIGN KEY (measure_unit_id) REFERENCES measure_units(id) ON DELETE SET NULL
 );
 
+-- Table: session
+-- Express-session PostgreSQL store for user sessions
+-- Note: connect-pg-simple will create this table automatically, but it's documented here for reference
+CREATE TABLE IF NOT EXISTS session (
+    sid VARCHAR NOT NULL PRIMARY KEY,
+    sess JSON NOT NULL,
+    expire TIMESTAMP NOT NULL
+);
+
 -- Indexes for performance
 CREATE INDEX idx_foods_description ON foods(description);
 CREATE INDEX idx_foods_food_category_id ON foods(food_category_id);
@@ -131,6 +140,7 @@ CREATE INDEX idx_foods_description_tsvector ON foods USING GIN(description_tsvec
 CREATE INDEX idx_recipes_user_id ON recipes(user_id);
 CREATE INDEX idx_ingredients_recipe_id ON ingredients(recipe_id);
 CREATE INDEX idx_ingredients_food_id ON ingredients(food_id);
+CREATE INDEX idx_session_expire ON session(expire);
 
 -- Comments for documentation
 COMMENT ON TABLE food_categories IS 'Categories for organizing foods (e.g., Nut and Seed Products)';
@@ -142,3 +152,4 @@ COMMENT ON TABLE food_nutrients IS 'Junction table storing nutrient amounts for 
 COMMENT ON TABLE users IS 'User accounts with authentication credentials';
 COMMENT ON TABLE recipes IS 'User-authored recipes with instructions and metadata';
 COMMENT ON TABLE ingredients IS 'Recipe ingredients linking recipes to foods with quantities and units';
+COMMENT ON TABLE session IS 'Express-session store for user authentication sessions';
