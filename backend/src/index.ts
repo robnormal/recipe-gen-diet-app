@@ -57,16 +57,90 @@ app.use(session({
   }
 }));
 
+type ConstraintSpec = Record<string, [number, string]>
+
 function inputToNumber(x: unknown) {
   return typeof x === 'number' ? x : x ? parseInt(x as string) : null;
+}
+
+// Error response utility
+function sendError(res: express.Response, status: number, message: string) {
+  res.status(status).json({ error: message });
+}
+
+function sendPgConstraintError(res: express.Response, error: unknown, constraintSpec: ConstraintSpec): boolean {
+  const pgError = error as { code: string; constraint?: string };
+  if (pgError.code === '23505') {
+    for (const key in constraintSpec) {
+      // Unique constraint violation
+      // Empty key is the default, so skip here
+      if (key !== '' && pgError.constraint?.includes(key)) {
+        sendError(res, constraintSpec[key][0], constraintSpec[key][1]);
+        return true
+      }
+    }
+
+    // Send default error message
+    sendError(res, constraintSpec[''][0], constraintSpec[''][1]);
+    return true
+  }
+
+  return false
+}
+
+// Async error handler wrapper
+function asyncHandler(
+  fn: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<unknown>
+) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch((error) => {
+      console.error(error);
+      sendError(res, 500, 'Database error');
+    });
+  };
 }
 
 // Authentication middleware
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
   if (!req.session.userId) {
-    return res.status(401).json({ error: 'Authentication required' });
+    return sendError(res, 401, 'Authentication required');
   }
   next();
+}
+
+// Recipe verification middleware
+async function requireRecipe(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const { recipeId } = req.params;
+  
+  try {
+    const recipe = await getRecipeById(parseInt(recipeId));
+    if (!recipe) {
+      return sendError(res, 404, 'Recipe not found');
+    }
+    next();
+  } catch (error) {
+    console.error(error);
+    sendError(res, 500, 'Database error');
+  }
+}
+
+// Ingredient verification middleware
+async function requireIngredient(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const { recipeId, ingredientId } = req.params;
+  
+  try {
+    const existingIngredient = await getIngredientById(parseInt(ingredientId));
+    if (!existingIngredient) {
+      return sendError(res, 404, 'Ingredient not found');
+    }
+    if (existingIngredient.recipe_id !== parseInt(recipeId)) {
+      return sendError(res, 404, 'Ingredient not found in this recipe');
+    }
+    next();
+  } catch (error) {
+    console.error(error);
+    sendError(res, 500, 'Database error');
+  }
 }
 
 app.get('/api/health', (_req, res) => {
@@ -74,105 +148,90 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Authentication endpoints
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json({ error: 'Fields "email" and "password" are required' });
+    return sendError(res, 400, 'Fields "email" and "password" are required');
   }
 
   if (typeof email !== 'string' || !email.includes('@')) {
-    return res.status(400).json({ error: 'Invalid email format' });
+    return sendError(res, 400, 'Invalid email format');
   }
 
-  try {
-    const user = await authenticateUser(email.trim(), password);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    // Store userId in session
-    req.session.userId = user.id;
-
-    res.json({
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      created_at: user.created_at,
-      updated_at: user.updated_at
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Database error' });
+  const user = await authenticateUser(email.trim(), password);
+  if (!user) {
+    return sendError(res, 401, 'Invalid email or password');
   }
-});
+
+  // Store userId in session
+  req.session.userId = user.id;
+
+  res.json({
+    id: user.id,
+    email: user.email,
+    username: user.username,
+    created_at: user.created_at,
+    updated_at: user.updated_at
+  });
+}));
 
 app.post('/api/auth/logout', (req, res) => {
   req.session.destroy((err) => {
     if (err) {
       console.error('Error destroying session:', err);
-      return res.status(500).json({ error: 'Failed to logout' });
+      return sendError(res, 500, 'Failed to logout');
     }
     res.json({ message: 'Logged out successfully' });
   });
 });
 
-app.get('/api/auth/me', async (req, res) => {
+app.get('/api/auth/me', asyncHandler(async (req, res) => {
   if (!req.session.userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
+    return sendError(res, 401, 'Not authenticated');
   }
 
-  try {
-    const user = await getUserById(req.session.userId);
-    if (!user) {
-      // Session references non-existent user, clear session
-      req.session.destroy(() => {});
-      return res.status(401).json({ error: 'User not found' });
-    }
-    res.json(user);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Database error' });
+  const user = await getUserById(req.session.userId);
+  if (!user) {
+    // Session references non-existent user, clear session
+    req.session.destroy(() => {});
+    return sendError(res, 401, 'User not found');
   }
-});
+  res.json(user);
+}));
 
-app.get('/api/foods/search', requireAuth, async (req, res) => {
+app.get('/api/foods/search', requireAuth, asyncHandler(async (req, res) => {
   const queryString = req.query.q;
   if (!queryString || typeof queryString !== 'string') {
-    return res.status(400).json({ error: 'Query parameter "q" is required' });
+    return sendError(res, 400, 'Query parameter "q" is required');
   }
 
   const words = queryString.trim().split(/\s+/);
   const limit = inputToNumber(req.query.limit) || 20;
   const offset = inputToNumber(req.query.offset) || 0;
 
-  try {
-    const { results, total } = await searchFoods(words, limit, offset);
+  const { results, total } = await searchFoods(words, limit, offset);
 
-    res.json({ results, pagination: { total, limit, offset } });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
+  res.json({ results, pagination: { total, limit, offset } });
+}));
 
 // User registration
 app.post('/api/users', async (req, res) => {
   const { email, username, password } = req.body;
 
   if (!email || !username || !password) {
-    return res.status(400).json({ error: 'Fields "email", "username", and "password" are required' });
+    return sendError(res, 400, 'Fields "email", "username", and "password" are required');
   }
 
   // Basic validation
   if (typeof email !== 'string' || !email.includes('@')) {
-    return res.status(400).json({ error: 'Invalid email format' });
+    return sendError(res, 400, 'Invalid email format');
   }
   if (typeof username !== 'string' || username.trim().length < 3) {
-    return res.status(400).json({ error: 'Username must be at least 3 characters long' });
+    return sendError(res, 400, 'Username must be at least 3 characters long');
   }
   if (typeof password !== 'string' || password.length < 6) {
-    return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    return sendError(res, 400, 'Password must be at least 6 characters long');
   }
 
   try {
@@ -186,59 +245,46 @@ app.post('/api/users', async (req, res) => {
       updated_at: user.updated_at
     });
   } catch (error: unknown) {
-    const pgError = error as { code: string; constraint?: string };
-    if (pgError.code === '23505') {
-      // Unique constraint violation
-      if (pgError.constraint?.includes('email')) {
-        return res.status(409).json({ error: 'Email already exists' });
-      }
-      if (pgError.constraint?.includes('username')) {
-        return res.status(409).json({ error: 'Username already exists' });
-      }
-      return res.status(409).json({ error: 'User already exists' });
+    if (sendPgConstraintError(res, error, {
+      email: [409, 'Email already exists'],
+      username: [409, 'Username already exists'],
+      '': [409, 'User already exists'],
+    })) {
+      return;
     }
     console.error(error);
-    res.status(500).json({ error: 'Database error' });
+    sendError(res, 500, 'Database error');
   }
 });
 
+
 // Recipes CRUD (recipe only; ingredients are not handled here)
-app.get('/api/recipes', requireAuth, async (req, res) => {
+app.get('/api/recipes', requireAuth, asyncHandler(async (req, res) => {
   const userId = req.session.userId!; // requireAuth ensures this exists
 
   const limit = inputToNumber(req.query.limit) || 20;
   const offset = inputToNumber(req.query.offset) || 0;
 
-  try {
-    const { results, total } = await listRecipes(userId, limit, offset);
+  const { results, total } = await listRecipes(userId, limit, offset);
 
-    res.json({ results, pagination: { total, limit, offset } });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
+  res.json({ results, pagination: { total, limit, offset } });
+}));
 
-app.get('/api/recipes/:id', requireAuth, async (req, res) => {
+app.get('/api/recipes/:id', requireAuth, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  try {
-    const recipe = await getRecipeById(parseInt(id));
-    if (!recipe) {
-      return res.status(404).json({ error: 'Recipe not found' });
-    }
-    res.json(recipe);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Database error' });
+  const recipe = await getRecipeById(parseInt(id));
+  if (!recipe) {
+    return sendError(res, 404, 'Recipe not found');
   }
-});
+  res.json(recipe);
+}));
 
 app.post('/api/recipes', requireAuth, async (req, res) => {
   const { name, description, instructions, servings, total_time_minutes } = req.body;
   const user_id = req.session.userId!; // requireAuth ensures this exists
 
   if (!name) {
-    return res.status(400).json({ error: 'Field "name" is required' });
+    return sendError(res, 400, 'Field "name" is required');
   }
 
   try {
@@ -253,9 +299,9 @@ app.post('/api/recipes', requireAuth, async (req, res) => {
     res.status(201).json(recipe);
   } catch (error: unknown) {
     if ((error as { code: string })?.code === '23505') {
-      return res.status(409).json({ error: 'Recipe with that name already exists for this user' });
+      return sendError(res, 409, 'Recipe with that name already exists for this user');
     }
-    res.status(500).json({ error: 'Database error' });
+    sendError(res, 500, 'Database error');
   }
 });
 
@@ -273,72 +319,40 @@ app.put('/api/recipes/:id', requireAuth, async (req, res) => {
       inputToNumber(total_time_minutes)
     );
     if (!recipe) {
-      return res.status(404).json({ error: 'Recipe not found' });
+      return sendError(res, 404, 'Recipe not found');
     }
     res.json(recipe);
   } catch (error: unknown) {
     if ((error as { code: string })?.code === '23505') {
-      return res.status(409).json({ error: 'Recipe with that name already exists for this user' });
+      return sendError(res, 409, 'Recipe with that name already exists for this user');
     }
-    res.status(500).json({ error: 'Database error' });
+    sendError(res, 500, 'Database error');
   }
 });
 
-app.delete('/api/recipes/:id', requireAuth, async (req, res) => {
+app.delete('/api/recipes/:id', requireAuth, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  try {
-    const deleted = await deleteRecipe(parseInt(id));
-    if (!deleted) {
-      return res.status(404).json({ error: 'Recipe not found' });
-    }
-    res.status(204).send();
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Database error' });
+  const deleted = await deleteRecipe(parseInt(id));
+  if (!deleted) {
+    return sendError(res, 404, 'Recipe not found');
   }
-});
+  res.status(204).send();
+}));
 
 // Ingredients endpoints
-app.get('/api/recipes/:recipeId/ingredients', requireAuth, async (req, res) => {
+app.get('/api/recipes/:recipeId/ingredients', requireAuth, requireRecipe, asyncHandler(async (req, res) => {
   const { recipeId } = req.params;
 
-  // Verify recipe exists
-  try {
-    const recipe = await getRecipeById(parseInt(recipeId));
-    if (!recipe) {
-      return res.status(404).json({ error: 'Recipe not found' });
-    }
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Database error' });
-  }
+  const ingredients = await getIngredientsByRecipeId(parseInt(recipeId));
+  res.json({ ingredients });
+}));
 
-  try {
-    const ingredients = await getIngredientsByRecipeId(parseInt(recipeId));
-    res.json({ ingredients });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-app.post('/api/recipes/:recipeId/ingredients', requireAuth, async (req, res) => {
+app.post('/api/recipes/:recipeId/ingredients', requireAuth, requireRecipe, async (req, res) => {
   const { recipeId } = req.params;
   const { food_id, gram_weight, measure_unit_id, quantity } = req.body;
 
   if (!food_id || gram_weight === undefined) {
-    return res.status(400).json({ error: 'Fields "food_id" and "gram_weight" are required' });
-  }
-
-  // Verify recipe exists
-  try {
-    const recipe = await getRecipeById(parseInt(recipeId));
-    if (!recipe) {
-      return res.status(404).json({ error: 'Recipe not found' });
-    }
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Database error' });
+    return sendError(res, 400, 'Fields "food_id" and "gram_weight" are required');
   }
 
   try {
@@ -351,50 +365,21 @@ app.post('/api/recipes/:recipeId/ingredients', requireAuth, async (req, res) => 
     );
     res.status(201).json(ingredient);
   } catch (error: unknown) {
-    const pgError = error as { code: string; constraint?: string };
-    if (pgError.code === '23503') {
-      // Foreign key violation
-      if (pgError.constraint?.includes('food_id')) {
-        return res.status(404).json({ error: 'Food not found' });
-      }
-      if (pgError.constraint?.includes('measure_unit_id')) {
-        return res.status(404).json({ error: 'Measure unit not found' });
-      }
-      return res.status(400).json({ error: 'Invalid reference' });
+    if (sendPgConstraintError(res, error, {
+      food_id: [404, 'Food not found'],
+      measure_unit_id: [404, 'Measure unit not found'],
+      '': [400, 'Invalid reference'],
+    })) {
+      return;
     }
     console.error(error);
-    res.status(500).json({ error: 'Database error' });
+    sendError(res, 500, 'Database error');
   }
 });
 
-app.put('/api/recipes/:recipeId/ingredients/:ingredientId', requireAuth, async (req, res) => {
-  const { recipeId, ingredientId } = req.params;
+app.put('/api/recipes/:recipeId/ingredients/:ingredientId', requireAuth, requireRecipe, requireIngredient, async (req, res) => {
+  const { ingredientId } = req.params;
   const { food_id, gram_weight, measure_unit_id, quantity } = req.body;
-
-  // Verify recipe exists
-  try {
-    const recipe = await getRecipeById(parseInt(recipeId));
-    if (!recipe) {
-      return res.status(404).json({ error: 'Recipe not found' });
-    }
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Database error' });
-  }
-
-  // Verify ingredient exists and belongs to recipe
-  try {
-    const existingIngredient = await getIngredientById(parseInt(ingredientId));
-    if (!existingIngredient) {
-      return res.status(404).json({ error: 'Ingredient not found' });
-    }
-    if (existingIngredient.recipe_id !== parseInt(recipeId)) {
-      return res.status(404).json({ error: 'Ingredient not found in this recipe' });
-    }
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Database error' });
-  }
 
   try {
     const ingredient = await updateIngredient(
@@ -405,65 +390,31 @@ app.put('/api/recipes/:recipeId/ingredients/:ingredientId', requireAuth, async (
       quantity !== undefined ? parseFloat(quantity) : null
     );
     if (!ingredient) {
-      return res.status(404).json({ error: 'Ingredient not found' });
+      return sendError(res, 404, 'Ingredient not found');
     }
     res.json(ingredient);
   } catch (error: unknown) {
-    const pgError = error as { code: string; constraint?: string };
-    if (pgError.code === '23503') {
-      // Foreign key violation
-      if (pgError.constraint?.includes('food_id')) {
-        return res.status(404).json({ error: 'Food not found' });
-      }
-      if (pgError.constraint?.includes('measure_unit_id')) {
-        return res.status(404).json({ error: 'Measure unit not found' });
-      }
-      return res.status(400).json({ error: 'Invalid reference' });
+    if (sendPgConstraintError(res, error, {
+      food_id: [404, 'Food not found'],
+      measure_unit_id: [404, 'Measure unit not found'],
+      '': [400, 'Invalid reference'],
+    })) {
+      return;
     }
     console.error(error);
-    res.status(500).json({ error: 'Database error' });
+    sendError(res, 500, 'Database error');
   }
 });
 
-app.delete('/api/recipes/:recipeId/ingredients/:ingredientId', requireAuth, async (req, res) => {
-  const { recipeId, ingredientId } = req.params;
+app.delete('/api/recipes/:recipeId/ingredients/:ingredientId', requireAuth, requireRecipe, requireIngredient, asyncHandler(async (req, res) => {
+  const { ingredientId } = req.params;
 
-  // Verify recipe exists
-  try {
-    const recipe = await getRecipeById(parseInt(recipeId));
-    if (!recipe) {
-      return res.status(404).json({ error: 'Recipe not found' });
-    }
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Database error' });
+  const deleted = await deleteIngredient(parseInt(ingredientId));
+  if (!deleted) {
+    return sendError(res, 404, 'Ingredient not found');
   }
-
-  // Verify ingredient exists and belongs to recipe
-  try {
-    const existingIngredient = await getIngredientById(parseInt(ingredientId));
-    if (!existingIngredient) {
-      return res.status(404).json({ error: 'Ingredient not found' });
-    }
-    if (existingIngredient.recipe_id !== parseInt(recipeId)) {
-      return res.status(404).json({ error: 'Ingredient not found in this recipe' });
-    }
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Database error' });
-  }
-
-  try {
-    const deleted = await deleteIngredient(parseInt(ingredientId));
-    if (!deleted) {
-      return res.status(404).json({ error: 'Ingredient not found' });
-    }
-    res.status(204).send();
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
+  res.status(204).send();
+}));
 
 
 if (require.main === module) {
