@@ -5,10 +5,25 @@ import bcrypt from 'bcryptjs';
 export const CALORIE_NUTRIENT_NUMBERS = ['208'];
 
 // Food search functions
-export async function searchFoods(words: string[], limit: number, offset: number) {
+export async function searchFoods(words: string[], limit: number, offset: number, categoryIds: number[] | null = null) {
   return withClient(async client => {
     // Create search query using ts_query (handles multiple words)
     const searchQuery = words.join(' & ');
+
+    // Build query with optional category filter
+    let categoryFilter = '';
+    const queryParams: (string | number | number[])[] = [searchQuery, limit, offset];
+    let countFilter = '';
+    const countParams: (string | number[])[] = [searchQuery];
+
+    if (categoryIds && categoryIds.length > 0) {
+      categoryFilter = 'AND f.food_category_id = ANY($4)';
+      queryParams.push(categoryIds);
+
+      // For count, $2 should be used for the categories instead of $4
+      countFilter = 'AND f.food_category_id = ANY($2)';
+      countParams.push(categoryIds);
+    }
 
     const result = await client.query(
       `SELECT
@@ -17,16 +32,18 @@ export async function searchFoods(words: string[], limit: number, offset: number
                  plainto_tsquery('english', $1)) as rank
      FROM foods f
      WHERE to_tsvector('english', f.description) @@ plainto_tsquery('english', $1)
+       ${categoryFilter}
      ORDER BY rank DESC, f.description
      LIMIT $2 OFFSET $3`,
-      [searchQuery, limit, offset]
+      queryParams
     );
 
     const countResult = await client.query(
       `SELECT COUNT(*)
-     FROM foods
-     WHERE to_tsvector('english', description) @@ plainto_tsquery('english', $1)`,
-      [searchQuery]
+     FROM foods f
+     WHERE to_tsvector('english', f.description) @@ plainto_tsquery('english', $1)
+       ${countFilter}`,
+      countParams
     );
 
     return {
@@ -34,6 +51,17 @@ export async function searchFoods(words: string[], limit: number, offset: number
       total: parseInt(countResult.rows[0].count)
     };
   });
+}
+
+// Food category functions
+export async function listFoodCategories() {
+  const result = await query(
+    `SELECT id, description
+     FROM food_categories
+     ORDER BY description`,
+    []
+  );
+  return result.rows;
 }
 
 // User functions

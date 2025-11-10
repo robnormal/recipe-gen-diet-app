@@ -1,5 +1,6 @@
 import {
   searchFoods,
+  listFoodCategories,
   createUser,
   authenticateUser,
   getUserById,
@@ -10,7 +11,6 @@ import {
   deleteRecipe,
   createIngredient,
   getIngredientById,
-  getIngredientsByRecipeId,
   getIngredientsWithFoods,
   updateIngredient,
   deleteIngredient
@@ -111,7 +111,7 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
 // Recipe verification middleware
 async function requireRecipe(req: express.Request, res: express.Response, next: express.NextFunction) {
   const { recipeId } = req.params;
-  
+
   try {
     const recipe = await getRecipeById(parseInt(recipeId));
     if (!recipe) {
@@ -126,7 +126,7 @@ async function requireRecipe(req: express.Request, res: express.Response, next: 
 // Ingredient verification middleware
 async function requireIngredient(req: express.Request, res: express.Response, next: express.NextFunction) {
   const { recipeId, ingredientId } = req.params;
-  
+
   try {
     const existingIngredient = await getIngredientById(parseInt(ingredientId));
     if (!existingIngredient) {
@@ -198,6 +198,11 @@ app.get('/api/auth/me', asyncHandler(async (req, res) => {
   res.json(user);
 }));
 
+app.get('/api/foods/categories', requireAuth, asyncHandler(async (_req, res) => {
+  const categories = await listFoodCategories();
+  res.json({ categories });
+}));
+
 app.get('/api/foods/search', requireAuth, asyncHandler(async (req, res) => {
   const queryString = req.query.q;
   if (!queryString || typeof queryString !== 'string') {
@@ -208,7 +213,29 @@ app.get('/api/foods/search', requireAuth, asyncHandler(async (req, res) => {
   const limit = inputToNumber(req.query.limit) || 20;
   const offset = inputToNumber(req.query.offset) || 0;
 
-  const { results, total } = await searchFoods(words, limit, offset);
+  // Parse category IDs from query parameter
+  let categoryIds: number[] | null = null;
+  if (req.query.categories && typeof req.query.categories === 'string') {
+    const categoryStrings = req.query.categories.split(',');
+    categoryIds = categoryStrings
+      .map(id => {
+        const num = parseInt(id.trim());
+        return isNaN(num) ? null : num;
+      })
+      .filter((id): id is number => id !== null);
+
+    // If any category ID was invalid, return error
+    if (categoryIds.length !== categoryStrings.length) {
+      return sendError(res, 400, 'Invalid category IDs provided');
+    }
+
+    // If empty array after filtering, treat as no filter
+    if (categoryIds.length === 0) {
+      categoryIds = null;
+    }
+  }
+
+  const { results, total } = await searchFoods(words, limit, offset, categoryIds);
 
   res.json({ results, pagination: { total, limit, offset } });
 }));

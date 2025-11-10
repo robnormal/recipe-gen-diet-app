@@ -72,6 +72,11 @@ interface IngredientWithFood extends Ingredient {
   food_description: string;
 }
 
+interface FoodCategory {
+  id: number;
+  description: string;
+}
+
 function App() {
   // Authentication state
   const [user, setUser] = useState<User | null>(null);
@@ -79,11 +84,12 @@ function App() {
 
   // Main app state
   const [healthStatus, setHealthStatus] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [searchResults, setSearchResults] = useState<FoodResult[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [totalResults, setTotalResults] = useState<number>(0);
+
+  // Food category state
+  const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState<boolean>(false);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
   // Registration state
   const [showRegistrationForm, setShowRegistrationForm] = useState<boolean>(false);
@@ -118,7 +124,6 @@ function App() {
 
   // Recipe detail state
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
-  const [recipeFormMode, setRecipeFormMode] = useState<'create' | 'edit' | null>(null);
   const [isLoadingRecipe, setIsLoadingRecipe] = useState<boolean>(false);
   const [recipeUpdateError, setRecipeUpdateError] = useState<string | null>(null);
   const [recipeUpdateSuccess, setRecipeUpdateSuccess] = useState<string | null>(null);
@@ -165,6 +170,24 @@ function App() {
   const [isCreatingIngredient, setIsCreatingIngredient] = useState<boolean>(false);
   const [ingredientCreateError, setIngredientCreateError] = useState<string | null>(null);
 
+  // Edit ingredient state
+  const [editingIngredientId, setEditingIngredientId] = useState<number | null>(null);
+  const [editIngredientData, setEditIngredientData] = useState<{
+    food_id: number | null;
+    food_description: string;
+    gram_weight: string;
+    quantity: string;
+    measure_unit_id: number | null;
+  }>({
+    food_id: null,
+    food_description: '',
+    gram_weight: '',
+    quantity: '',
+    measure_unit_id: null
+  });
+  const [isUpdatingIngredient, setIsUpdatingIngredient] = useState<boolean>(false);
+  const [ingredientUpdateError, setIngredientUpdateError] = useState<string | null>(null);
+
   // Check authentication status on mount
   const checkAuthStatus = async () => {
     try {
@@ -189,7 +212,38 @@ function App() {
     }
   };
 
+  const fetchCategories = useCallback(async () => {
+    if (!user) return;
+
+    setIsLoadingCategories(true);
+    setCategoriesError(null);
+
+    try {
+      const response = await fetch('/api/foods/categories', {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setUser(null);
+          throw new Error('Session expired. Please login again.');
+        }
+        throw new Error('Failed to fetch categories');
+      }
+
+      const data: { categories: FoodCategory[] } = await response.json();
+      setFoodCategories(data.categories);
+    } catch (err) {
+      setCategoriesError(err instanceof Error ? err.message : 'Failed to load categories');
+      console.error('Error fetching categories:', err);
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  }, [user]);
+
   const fetchRecipes = useCallback(async () => {
+    if (!user) return;
+
     setIsLoadingRecipes(true);
     setRecipesError(null);
 
@@ -214,14 +268,14 @@ function App() {
     } finally {
       setIsLoadingRecipes(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     checkAuthStatus();
   }, []);
 
   useEffect(() => {
-    // Only fetch health status and recipes if authenticated
+    // Only fetch health status, categories, and recipes if authenticated
     if (user) {
       fetch('/api/health', {
         credentials: 'include'
@@ -230,89 +284,15 @@ function App() {
         .then((data) => setHealthStatus(data.message))
         .catch((err) => console.error('Failed to fetch health status:', err));
 
-      let cancelled = false;
-      setIsLoadingRecipes(true);
-      setRecipesError(null);
-
-      fetch('/api/recipes?limit=100&offset=0', {
-        credentials: 'include'
-      })
-        .then(async (response) => {
-          if (cancelled) return;
-          
-          if (!response.ok) {
-            if (response.status === 401) {
-              setUser(null);
-              throw new Error('Session expired. Please login again.');
-            }
-            throw new Error('Failed to fetch recipes');
-          }
-
-          const data: RecipesResponse = await response.json();
-          if (!cancelled) {
-            setRecipes(data.results);
-          }
-        })
-        .catch((err) => {
-          if (!cancelled) {
-            setRecipesError(err instanceof Error ? err.message : 'Failed to load recipes');
-            console.error('Error fetching recipes:', err);
-          }
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setIsLoadingRecipes(false);
-          }
-        });
-
-      return () => {
-        cancelled = true;
-      };
+      fetchCategories();
+      fetchRecipes();
     } else {
       setRecipes([]);
+      setFoodCategories([]);
+      setSelectedCategories([]);
     }
-  }, [user]);
+  }, [user, fetchCategories, fetchRecipes]);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      setTotalResults(0);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(
-        `/api/foods/search?q=${encodeURIComponent(searchQuery.trim())}&limit=20&offset=0`,
-        {
-          credentials: 'include'
-        }
-      );
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setUser(null);
-          throw new Error('Session expired. Please login again.');
-        }
-        throw new Error('Failed to search foods');
-      }
-
-      const data: SearchResponse = await response.json();
-      setSearchResults(data.results);
-      setTotalResults(data.pagination.total);
-    } catch (err) {
-      setError('Failed to search foods. Please try again.');
-      console.error('Search error:', err);
-      setSearchResults([]);
-      setTotalResults(0);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -354,9 +334,6 @@ function App() {
 
       if (response.ok) {
         setUser(null);
-        setSearchResults([]);
-        setTotalResults(0);
-        setSearchQuery('');
       } else {
         console.error('Failed to logout');
       }
@@ -606,13 +583,12 @@ function App() {
     setIsLoadingIngredients(true);
     setIngredientError(null);
     setSelectedRecipe(recipe);
-    setRecipeFormMode('edit');
 
     try {
       // Fetch full recipe details
       const recipeDetails = await fetchRecipeDetails(recipe.id);
       setSelectedRecipe(recipeDetails);
-      
+
       // Initialize form data with recipe details
       setRecipeFormData({
         name: recipeDetails.name,
@@ -693,7 +669,7 @@ function App() {
 
       const updatedRecipe = await updateRecipeDetails(selectedRecipe.id, updateData);
       setSelectedRecipe(updatedRecipe);
-      
+
       // Update form data with the updated recipe
       setRecipeFormData({
         name: updatedRecipe.name,
@@ -702,7 +678,7 @@ function App() {
         servings: updatedRecipe.servings?.toString() || '',
         total_time_minutes: updatedRecipe.total_time_minutes?.toString() || ''
       });
-      
+
       setRecipeUpdateSuccess('Recipe updated successfully!');
 
       // Refresh recipes list
@@ -727,12 +703,14 @@ function App() {
     setIngredientSearchError(null);
 
     try {
-      const response = await fetch(
-        `/api/foods/search?q=${encodeURIComponent(ingredientSearchQuery.trim())}&limit=20&offset=0`,
-        {
-          credentials: 'include'
-        }
-      );
+      let url = `/api/foods/search?q=${encodeURIComponent(ingredientSearchQuery.trim())}&limit=20&offset=0`;
+      if (selectedCategories.length > 0) {
+        url += `&categories=${selectedCategories.join(',')}`;
+      }
+
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -822,6 +800,89 @@ function App() {
       console.error('Ingredient creation error:', err);
     } finally {
       setIsCreatingIngredient(false);
+    }
+  };
+
+  const handleStartEditIngredient = (ingredient: IngredientWithFood) => {
+    setEditingIngredientId(ingredient.id);
+    setEditIngredientData({
+      food_id: ingredient.food_id,
+      food_description: ingredient.food_description,
+      gram_weight: ingredient.gram_weight.toString(),
+      quantity: ingredient.quantity?.toString() || '',
+      measure_unit_id: ingredient.measure_unit_id
+    });
+    setIngredientUpdateError(null);
+  };
+
+  const handleCancelEditIngredient = () => {
+    setEditingIngredientId(null);
+    setEditIngredientData({
+      food_id: null,
+      food_description: '',
+      gram_weight: '',
+      quantity: '',
+      measure_unit_id: null
+    });
+    setIngredientUpdateError(null);
+  };
+
+  const handleUpdateIngredient = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedRecipe || !editingIngredientId || !editIngredientData.food_id || !editIngredientData.gram_weight) {
+      setIngredientUpdateError('Food and gram weight are required');
+      return;
+    }
+
+    setIsUpdatingIngredient(true);
+    setIngredientUpdateError(null);
+
+    try {
+      const gramWeight = parseFloat(editIngredientData.gram_weight);
+      if (isNaN(gramWeight) || gramWeight <= 0) {
+        throw new Error('Gram weight must be a positive number');
+      }
+
+      const updateData: {
+        food_id?: number;
+        gram_weight?: number;
+        measure_unit_id?: number | null;
+        quantity?: number | null;
+      } = {
+        gram_weight: gramWeight,
+      };
+
+      if (editIngredientData.quantity) {
+        const quantity = parseFloat(editIngredientData.quantity);
+        if (!isNaN(quantity) && quantity > 0) {
+          updateData.quantity = quantity;
+        } else {
+          updateData.quantity = null;
+        }
+      } else {
+        updateData.quantity = null;
+      }
+
+      if (editIngredientData.measure_unit_id) {
+        updateData.measure_unit_id = editIngredientData.measure_unit_id;
+      } else {
+        updateData.measure_unit_id = null;
+      }
+
+      await updateIngredient(selectedRecipe.id, editingIngredientId, updateData);
+
+      // Refresh ingredients list
+      const ingredientsList = await fetchIngredients(selectedRecipe.id);
+      setIngredients(ingredientsList);
+
+      // Clear edit state
+      handleCancelEditIngredient();
+    } catch (err) {
+      setIngredientUpdateError(err instanceof Error ? err.message : 'Failed to update ingredient. Please try again.');
+      console.error('Ingredient update error:', err);
+    } finally {
+      setIsUpdatingIngredient(false);
     }
   };
 
@@ -1009,7 +1070,6 @@ function App() {
             <button
               onClick={() => {
                 setSelectedRecipe(null);
-                setRecipeFormMode(null);
                 setIngredients([]);
                 setRecipeUpdateError(null);
                 setRecipeUpdateSuccess(null);
@@ -1025,6 +1085,15 @@ function App() {
                   measure_unit_id: null
                 });
                 setIngredientCreateError(null);
+                setEditingIngredientId(null);
+                setEditIngredientData({
+                  food_id: null,
+                  food_description: '',
+                  gram_weight: '',
+                  quantity: '',
+                  measure_unit_id: null
+                });
+                setIngredientUpdateError(null);
                 setRecipeFormData({
                   name: '',
                   description: '',
@@ -1139,53 +1208,116 @@ function App() {
                   <ul className="ingredients-list">
                     {ingredients.map((ingredient) => (
                       <li key={ingredient.id} className="ingredient-item">
-                        <div className="ingredient-info">
-                          <div className="ingredient-main">
-                            <span className="ingredient-food">{ingredient.food_description}</span>
-                            <span className="ingredient-weight">{ingredient.gram_weight}g</span>
+                        {editingIngredientId === ingredient.id ? (
+                          <div className="edit-ingredient-form">
+                            <form onSubmit={handleUpdateIngredient} className="ingredient-form">
+                              <div className="selected-food">
+                                <strong>Food:</strong> {editIngredientData.food_description}
+                              </div>
+
+                              <div className="form-group">
+                                <label htmlFor={`edit-ingredient-gram-weight-${ingredient.id}`}>Gram Weight (required):</label>
+                                <input
+                                  id={`edit-ingredient-gram-weight-${ingredient.id}`}
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  value={editIngredientData.gram_weight}
+                                  onChange={(e) =>
+                                    setEditIngredientData({ ...editIngredientData, gram_weight: e.target.value })
+                                  }
+                                  className="form-input"
+                                  placeholder="Enter weight in grams"
+                                  required
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label htmlFor={`edit-ingredient-quantity-${ingredient.id}`}>Quantity (optional):</label>
+                                <input
+                                  id={`edit-ingredient-quantity-${ingredient.id}`}
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  value={editIngredientData.quantity}
+                                  onChange={(e) =>
+                                    setEditIngredientData({ ...editIngredientData, quantity: e.target.value })
+                                  }
+                                  className="form-input"
+                                  placeholder="Enter quantity (optional)"
+                                />
+                              </div>
+
+                              {ingredientUpdateError && (
+                                <p className="error-message">{ingredientUpdateError}</p>
+                              )}
+
+                              <div className="form-actions">
+                                <button
+                                  type="submit"
+                                  disabled={isUpdatingIngredient || !editIngredientData.gram_weight}
+                                  className="submit-button"
+                                >
+                                  {isUpdatingIngredient ? 'Saving...' : 'Save Changes'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditIngredient}
+                                  className="cancel-button"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
                           </div>
-                          <div className="ingredient-details">
-                            {ingredient.quantity && (
-                              <span className="ingredient-quantity">Quantity: {ingredient.quantity}</span>
-                            )}
-                            {ingredient.measure_unit_id && (
-                              <span className="ingredient-unit">Unit ID: {ingredient.measure_unit_id}</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="ingredient-actions">
-                          <button
-                            onClick={() => {
-                              // Edit functionality will be added in a future step
-                              console.log('Edit ingredient:', ingredient.id);
-                            }}
-                            className="edit-button"
-                            type="button"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={async () => {
-                              if (!selectedRecipe) return;
-                              if (!window.confirm('Are you sure you want to delete this ingredient?')) {
-                                return;
-                              }
-                              try {
-                                await deleteIngredient(selectedRecipe.id, ingredient.id);
-                                // Refresh ingredients list
-                                const ingredientsList = await fetchIngredients(selectedRecipe.id);
-                                setIngredients(ingredientsList);
-                              } catch (err) {
-                                setIngredientError(err instanceof Error ? err.message : 'Failed to delete ingredient');
-                                console.error('Delete ingredient error:', err);
-                              }
-                            }}
-                            className="delete-button"
-                            type="button"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        ) : (
+                          <>
+                            <div className="ingredient-info">
+                              <div className="ingredient-main">
+                                <span className="ingredient-food">{ingredient.food_description}</span>
+                                <span className="ingredient-weight">{ingredient.gram_weight}g</span>
+                              </div>
+                              <div className="ingredient-details">
+                                {ingredient.quantity && (
+                                  <span className="ingredient-quantity">Quantity: {ingredient.quantity}</span>
+                                )}
+                                {ingredient.measure_unit_id && (
+                                  <span className="ingredient-unit">Unit ID: {ingredient.measure_unit_id}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="ingredient-actions">
+                              <button
+                                onClick={() => handleStartEditIngredient(ingredient)}
+                                className="edit-button"
+                                type="button"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (!selectedRecipe) return;
+                                  if (!window.confirm('Are you sure you want to delete this ingredient?')) {
+                                    return;
+                                  }
+                                  try {
+                                    await deleteIngredient(selectedRecipe.id, ingredient.id);
+                                    // Refresh ingredients list
+                                    const ingredientsList = await fetchIngredients(selectedRecipe.id);
+                                    setIngredients(ingredientsList);
+                                  } catch (err) {
+                                    setIngredientError(err instanceof Error ? err.message : 'Failed to delete ingredient');
+                                    console.error('Delete ingredient error:', err);
+                                  }
+                                }}
+                                className="delete-button"
+                                type="button"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -1193,9 +1325,46 @@ function App() {
 
                 <div className="add-ingredient-section">
                   <h4>Add Ingredient</h4>
-                  
+
                   {!newIngredient.food_id ? (
                     <div className="ingredient-search-container">
+                      <div className="category-filter-container">
+                        <label htmlFor="ingredient-category-filter" className="category-filter-label">Filter by Category:</label>
+                        {isLoadingCategories ? (
+                          <p className="loading-message">Loading categories...</p>
+                        ) : categoriesError ? (
+                          <p className="error-message">{categoriesError}</p>
+                        ) : foodCategories.length > 0 ? (
+                          <div className="category-selector">
+                            <select
+                              id="ingredient-category-filter"
+                              multiple
+                              value={selectedCategories.map(String)}
+                              onChange={(e) => {
+                                const selected = Array.from(e.target.selectedOptions, option => parseInt(option.value));
+                                setSelectedCategories(selected);
+                              }}
+                              className="category-multiselect"
+                              size={Math.min(foodCategories.length, 8)}
+                            >
+                              {foodCategories.map((category) => (
+                                <option key={category.id} value={category.id.toString()}>
+                                  {category.description}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedCategories.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedCategories([])}
+                                className="clear-categories-button"
+                              >
+                                Clear All
+                              </button>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
                       <form onSubmit={handleIngredientSearch} className="search-form">
                         <input
                           type="text"
@@ -1257,7 +1426,7 @@ function App() {
                           Change
                         </button>
                       </div>
-                      
+
                       <form onSubmit={handleAddIngredient} className="ingredient-form">
                         <div className="form-group">
                           <label htmlFor="ingredient-gram-weight">Gram Weight (required):</label>
@@ -1334,7 +1503,6 @@ function App() {
       {/* Main content - only show if no recipe is selected */}
       {!selectedRecipe && (
         <>
-
       <div className="recipe-section">
         {!showRecipeForm ? (
           <button
@@ -1389,48 +1557,6 @@ function App() {
             </form>
           </div>
         )}
-      </div>
-
-      <div className="search-container">
-        <form onSubmit={handleSearch} className="search-form">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search for foods..."
-            className="search-input"
-          />
-          <button type="submit" disabled={isLoading} className="search-button">
-            {isLoading ? 'Searching...' : 'Search'}
-          </button>
-        </form>
-      </div>
-
-      {error && <p className="error-message">{error}</p>}
-
-      {totalResults > 0 && (
-        <p className="results-count">
-          Found {totalResults} result{totalResults !== 1 ? 's' : ''}
-        </p>
-      )}
-
-      <div className="results-container">
-        {searchResults.length > 0 ? (
-          <ul className="food-results">
-            {searchResults.map((food, index) => (
-              <li key={index} className="food-item">
-                <div className="food-description">{food.description}</div>
-                <div className="food-details">
-                  <span className="calorie-density">
-                    {food.calorie_density?.toFixed(1) || 'N/A'} kcal/g
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : searchQuery && !isLoading && !error ? (
-          <p className="no-results">No results found. Try a different search term.</p>
-        ) : null}
       </div>
 
       <div className="recipes-section">
