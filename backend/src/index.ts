@@ -1,6 +1,8 @@
 import {
   searchFoods,
   listFoodCategories,
+  checkFoodExists,
+  getFoodPortions,
   createUser,
   authenticateUser,
   getUserById,
@@ -238,6 +240,24 @@ app.get('/api/foods/search', requireAuth, asyncHandler(async (req, res) => {
   const { results, total } = await searchFoods(words, limit, offset, categoryIds);
 
   res.json({ results, pagination: { total, limit, offset } });
+}));
+
+app.get('/api/foods/:foodId/portions', requireAuth, asyncHandler(async (req, res) => {
+  const { foodId } = req.params;
+  const foodIdNum = parseInt(foodId);
+
+  if (isNaN(foodIdNum)) {
+    return sendError(res, 400, 'Invalid food ID');
+  }
+
+  // Check if food exists
+  const foodExists = await checkFoodExists(foodIdNum);
+  if (!foodExists) {
+    return sendError(res, 404, 'Food not found');
+  }
+
+  const portions = await getFoodPortions(foodIdNum);
+  res.json({ portions });
 }));
 
 // User registration

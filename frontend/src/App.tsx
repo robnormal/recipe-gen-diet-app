@@ -72,6 +72,13 @@ interface IngredientWithFood extends Ingredient {
   food_description: string;
 }
 
+interface FoodPortion {
+  id: number;
+  amount: number;
+  modifier: string | null;
+  gram_weight: number;
+}
+
 interface FoodCategory {
   id: number;
   description: string;
@@ -169,6 +176,20 @@ function App() {
   });
   const [isCreatingIngredient, setIsCreatingIngredient] = useState<boolean>(false);
   const [ingredientCreateError, setIngredientCreateError] = useState<string | null>(null);
+
+  // Portion state
+  const [availablePortions, setAvailablePortions] = useState<FoodPortion[]>([]);
+  const [isLoadingPortions, setIsLoadingPortions] = useState<boolean>(false);
+  const [portionsError, setPortionsError] = useState<string | null>(null);
+  const [selectedMeasurementType, setSelectedMeasurementType] = useState<'grams' | 'portion' | null>(null);
+  const [selectedPortionId, setSelectedPortionId] = useState<number | null>(null);
+
+  // Edit portion state
+  const [editAvailablePortions, setEditAvailablePortions] = useState<FoodPortion[]>([]);
+  const [isLoadingEditPortions, setIsLoadingEditPortions] = useState<boolean>(false);
+  const [editPortionsError, setEditPortionsError] = useState<string | null>(null);
+  const [editSelectedMeasurementType, setEditSelectedMeasurementType] = useState<'grams' | 'portion' | null>(null);
+  const [editSelectedPortionId, setEditSelectedPortionId] = useState<number | null>(null);
 
   // Edit ingredient state
   const [editingIngredientId, setEditingIngredientId] = useState<number | null>(null);
@@ -490,6 +511,27 @@ function App() {
     return data.ingredients;
   };
 
+  const fetchFoodPortions = async (foodId: number): Promise<FoodPortion[]> => {
+    const response = await fetch(`/api/foods/${foodId}/portions`, {
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        setUser(null);
+        throw new Error('Session expired. Please login again.');
+      }
+      if (response.status === 404) {
+        throw new Error('Food not found');
+      }
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to fetch food portions');
+    }
+
+    const data: { portions: FoodPortion[] } = await response.json();
+    return data.portions;
+  };
+
   const createIngredient = async (
     recipeId: number,
     ingredientData: {
@@ -574,6 +616,14 @@ function App() {
       const errorData = await response.json();
       throw new Error(errorData.error || 'Failed to delete ingredient');
     }
+  };
+
+  // Helper function to format ingredient measurement
+  const formatIngredientMeasurement = (ingredient: IngredientWithFood): string => {
+    if (ingredient.quantity) {
+      return `${ingredient.quantity}`;
+    }
+    return 'grams';
   };
 
   const handleRecipeClick = async (recipe: Recipe) => {
@@ -731,7 +781,7 @@ function App() {
     }
   };
 
-  const handleSelectFoodForIngredient = (food: FoodResult) => {
+  const handleSelectFoodForIngredient = async (food: FoodResult) => {
     setNewIngredient({
       food_id: food.id,
       food_description: food.description,
@@ -741,13 +791,28 @@ function App() {
     });
     setIngredientSearchQuery('');
     setIngredientSearchResults([]);
+    setSelectedMeasurementType(null);
+    setSelectedPortionId(null);
+    setPortionsError(null);
+
+    // Fetch portions for this food
+    setIsLoadingPortions(true);
+    try {
+      const portions = await fetchFoodPortions(food.id);
+      setAvailablePortions(portions);
+    } catch (err) {
+      setPortionsError(err instanceof Error ? err.message : 'Failed to load portions');
+      setAvailablePortions([]);
+    } finally {
+      setIsLoadingPortions(false);
+    }
   };
 
   const handleAddIngredient = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedRecipe || !newIngredient.food_id || !newIngredient.gram_weight) {
-      setIngredientCreateError('Food and gram weight are required');
+    if (!selectedRecipe || !newIngredient.food_id) {
+      setIngredientCreateError('Food is required');
       return;
     }
 
@@ -755,9 +820,32 @@ function App() {
     setIngredientCreateError(null);
 
     try {
-      const gramWeight = parseFloat(newIngredient.gram_weight);
-      if (isNaN(gramWeight) || gramWeight <= 0) {
-        throw new Error('Gram weight must be a positive number');
+      let gramWeight: number;
+      let quantity: number | null = null;
+
+      if (selectedMeasurementType === 'grams') {
+        // Direct gram entry
+        gramWeight = parseFloat(newIngredient.gram_weight);
+        if (isNaN(gramWeight) || gramWeight <= 0) {
+          throw new Error('Gram weight must be a positive number');
+        }
+      } else if (selectedMeasurementType === 'portion' && selectedPortionId) {
+        // Portion-based entry
+        const selectedPortion = availablePortions.find(p => p.id === selectedPortionId);
+        if (!selectedPortion) {
+          throw new Error('Selected portion not found');
+        }
+
+        const userQuantity = parseFloat(newIngredient.quantity);
+        if (isNaN(userQuantity) || userQuantity <= 0) {
+          throw new Error('Quantity must be a positive number');
+        }
+
+        // Calculate gram_weight: (user_quantity / portion.amount) * portion.gram_weight
+        gramWeight = (userQuantity / selectedPortion.amount) * selectedPortion.gram_weight;
+        quantity = userQuantity;
+      } else {
+        throw new Error('Please select a measurement type');
       }
 
       const ingredientData: {
@@ -768,18 +856,9 @@ function App() {
       } = {
         food_id: newIngredient.food_id,
         gram_weight: gramWeight,
+        measure_unit_id: null,
+        quantity: quantity,
       };
-
-      if (newIngredient.quantity) {
-        const quantity = parseFloat(newIngredient.quantity);
-        if (!isNaN(quantity) && quantity > 0) {
-          ingredientData.quantity = quantity;
-        }
-      }
-
-      if (newIngredient.measure_unit_id) {
-        ingredientData.measure_unit_id = newIngredient.measure_unit_id;
-      }
 
       await createIngredient(selectedRecipe.id, ingredientData);
 
@@ -795,6 +874,9 @@ function App() {
         quantity: '',
         measure_unit_id: null
       });
+      setSelectedMeasurementType(null);
+      setSelectedPortionId(null);
+      setAvailablePortions([]);
     } catch (err) {
       setIngredientCreateError(err instanceof Error ? err.message : 'Failed to create ingredient. Please try again.');
       console.error('Ingredient creation error:', err);
@@ -803,7 +885,7 @@ function App() {
     }
   };
 
-  const handleStartEditIngredient = (ingredient: IngredientWithFood) => {
+  const handleStartEditIngredient = async (ingredient: IngredientWithFood) => {
     setEditingIngredientId(ingredient.id);
     setEditIngredientData({
       food_id: ingredient.food_id,
@@ -813,6 +895,39 @@ function App() {
       measure_unit_id: ingredient.measure_unit_id
     });
     setIngredientUpdateError(null);
+    setEditSelectedMeasurementType(null);
+    setEditSelectedPortionId(null);
+    setEditPortionsError(null);
+
+    // Determine measurement type
+    if (ingredient.quantity) {
+      setEditSelectedMeasurementType('portion');
+    } else {
+      setEditSelectedMeasurementType('grams');
+    }
+
+    // Fetch portions for this food
+    setIsLoadingEditPortions(true);
+    try {
+      const portions = await fetchFoodPortions(ingredient.food_id);
+      setEditAvailablePortions(portions);
+
+      // If editing a portion-based ingredient, try to find a matching portion
+      // by matching the quantity to a portion's amount (best effort)
+      if (ingredient.quantity) {
+        const matchingPortion = portions.find(
+          p => p.amount === ingredient.quantity
+        );
+        if (matchingPortion) {
+          setEditSelectedPortionId(matchingPortion.id);
+        }
+      }
+    } catch (err) {
+      setEditPortionsError(err instanceof Error ? err.message : 'Failed to load portions');
+      setEditAvailablePortions([]);
+    } finally {
+      setIsLoadingEditPortions(false);
+    }
   };
 
   const handleCancelEditIngredient = () => {
@@ -825,13 +940,16 @@ function App() {
       measure_unit_id: null
     });
     setIngredientUpdateError(null);
+    setEditSelectedMeasurementType(null);
+    setEditSelectedPortionId(null);
+    setEditAvailablePortions([]);
   };
 
   const handleUpdateIngredient = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedRecipe || !editingIngredientId || !editIngredientData.food_id || !editIngredientData.gram_weight) {
-      setIngredientUpdateError('Food and gram weight are required');
+    if (!selectedRecipe || !editingIngredientId || !editIngredientData.food_id) {
+      setIngredientUpdateError('Food is required');
       return;
     }
 
@@ -839,9 +957,32 @@ function App() {
     setIngredientUpdateError(null);
 
     try {
-      const gramWeight = parseFloat(editIngredientData.gram_weight);
-      if (isNaN(gramWeight) || gramWeight <= 0) {
-        throw new Error('Gram weight must be a positive number');
+      let gramWeight: number;
+      let quantity: number | null = null;
+
+      if (editSelectedMeasurementType === 'grams') {
+        // Direct gram entry
+        gramWeight = parseFloat(editIngredientData.gram_weight);
+        if (isNaN(gramWeight) || gramWeight <= 0) {
+          throw new Error('Gram weight must be a positive number');
+        }
+      } else if (editSelectedMeasurementType === 'portion' && editSelectedPortionId) {
+        // Portion-based entry
+        const selectedPortion = editAvailablePortions.find(p => p.id === editSelectedPortionId);
+        if (!selectedPortion) {
+          throw new Error('Selected portion not found');
+        }
+
+        const userQuantity = parseFloat(editIngredientData.quantity);
+        if (isNaN(userQuantity) || userQuantity <= 0) {
+          throw new Error('Quantity must be a positive number');
+        }
+
+        // Calculate gram_weight: (user_quantity / portion.amount) * portion.gram_weight
+        gramWeight = (userQuantity / selectedPortion.amount) * selectedPortion.gram_weight;
+        quantity = userQuantity;
+      } else {
+        throw new Error('Please select a measurement type');
       }
 
       const updateData: {
@@ -851,24 +992,9 @@ function App() {
         quantity?: number | null;
       } = {
         gram_weight: gramWeight,
+        measure_unit_id: null,
+        quantity: quantity,
       };
-
-      if (editIngredientData.quantity) {
-        const quantity = parseFloat(editIngredientData.quantity);
-        if (!isNaN(quantity) && quantity > 0) {
-          updateData.quantity = quantity;
-        } else {
-          updateData.quantity = null;
-        }
-      } else {
-        updateData.quantity = null;
-      }
-
-      if (editIngredientData.measure_unit_id) {
-        updateData.measure_unit_id = editIngredientData.measure_unit_id;
-      } else {
-        updateData.measure_unit_id = null;
-      }
 
       await updateIngredient(selectedRecipe.id, editingIngredientId, updateData);
 
@@ -1215,39 +1341,100 @@ function App() {
                                 <strong>Food:</strong> {editIngredientData.food_description}
                               </div>
 
+                              {isLoadingEditPortions && (
+                                <p className="loading-message">Loading measurement options...</p>
+                              )}
                               <div className="form-group">
-                                <label htmlFor={`edit-ingredient-gram-weight-${ingredient.id}`}>Gram Weight (required):</label>
-                                <input
-                                  id={`edit-ingredient-gram-weight-${ingredient.id}`}
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  value={editIngredientData.gram_weight}
-                                  onChange={(e) =>
-                                    setEditIngredientData({ ...editIngredientData, gram_weight: e.target.value })
-                                  }
+                                <label htmlFor={`edit-ingredient-measurement-type-${ingredient.id}`}>Measurement Type:</label>
+                                <select
+                                  id={`edit-ingredient-measurement-type-${ingredient.id}`}
+                                  value={editSelectedMeasurementType === 'grams' ? 'grams' : 
+                                         editSelectedPortionId ? `portion-${editSelectedPortionId}` : ''}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (value === 'grams') {
+                                      setEditSelectedMeasurementType('grams');
+                                      setEditSelectedPortionId(null);
+                                      setEditIngredientData({ ...editIngredientData, quantity: '', measure_unit_id: null });
+                                    } else if (value.startsWith('portion-')) {
+                                      const portionId = parseInt(value.replace('portion-', ''));
+                                      setEditSelectedMeasurementType('portion');
+                                      setEditSelectedPortionId(portionId);
+                                      const selectedPortion = editAvailablePortions.find(p => p.id === portionId);
+                                      if (selectedPortion) {
+                                        setEditIngredientData({ 
+                                          ...editIngredientData, 
+                                          quantity: selectedPortion.amount.toString(),
+                                          measure_unit_id: null,
+                                          gram_weight: ''
+                                        });
+                                      }
+                                    } else {
+                                      setEditSelectedMeasurementType(null);
+                                      setEditSelectedPortionId(null);
+                                    }
+                                  }}
                                   className="form-input"
-                                  placeholder="Enter weight in grams"
                                   required
-                                />
+                                  disabled={isLoadingEditPortions}
+                                >
+                                  <option value="">Select measurement type...</option>
+                                  <option value="grams">Grams</option>
+                                  {editAvailablePortions.map((portion) => {
+                                    const portionLabel = `${portion.amount}${portion.modifier ? ' ' + portion.modifier : ''}`;
+                                    return (
+                                      <option key={portion.id} value={`portion-${portion.id}`}>
+                                        {portionLabel}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
                               </div>
 
-                              <div className="form-group">
-                                <label htmlFor={`edit-ingredient-quantity-${ingredient.id}`}>Quantity (optional):</label>
-                                <input
-                                  id={`edit-ingredient-quantity-${ingredient.id}`}
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  value={editIngredientData.quantity}
-                                  onChange={(e) =>
-                                    setEditIngredientData({ ...editIngredientData, quantity: e.target.value })
-                                  }
-                                  className="form-input"
-                                  placeholder="Enter quantity (optional)"
-                                />
-                              </div>
+                              {editSelectedMeasurementType === 'grams' && (
+                                <div className="form-group">
+                                  <label htmlFor={`edit-ingredient-gram-weight-${ingredient.id}`}>Gram Weight (required):</label>
+                                  <input
+                                    id={`edit-ingredient-gram-weight-${ingredient.id}`}
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    value={editIngredientData.gram_weight}
+                                    onChange={(e) =>
+                                      setEditIngredientData({ ...editIngredientData, gram_weight: e.target.value })
+                                    }
+                                    className="form-input"
+                                    placeholder="Enter weight in grams"
+                                    required
+                                  />
+                                </div>
+                              )}
 
+                              {editSelectedMeasurementType === 'portion' && editSelectedPortionId && (() => {
+                                const selectedPortion = editAvailablePortions.find(p => p.id === editSelectedPortionId);
+                                return selectedPortion ? (
+                                  <div className="form-group">
+                                    <label htmlFor={`edit-ingredient-quantity-${ingredient.id}`}>Quantity (required):</label>
+                                    <input
+                                      id={`edit-ingredient-quantity-${ingredient.id}`}
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      value={editIngredientData.quantity || selectedPortion.amount.toString()}
+                                      onChange={(e) =>
+                                        setEditIngredientData({ ...editIngredientData, quantity: e.target.value })
+                                      }
+                                      className="form-input"
+                                      placeholder={`Enter quantity (base: ${selectedPortion.amount}${selectedPortion.modifier ? ' ' + selectedPortion.modifier : ''})`}
+                                      required
+                                    />
+                                  </div>
+                                ) : null;
+                              })()}
+
+                              {editPortionsError && (
+                                <p className="error-message">{editPortionsError}</p>
+                              )}
                               {ingredientUpdateError && (
                                 <p className="error-message">{ingredientUpdateError}</p>
                               )}
@@ -1255,7 +1442,9 @@ function App() {
                               <div className="form-actions">
                                 <button
                                   type="submit"
-                                  disabled={isUpdatingIngredient || !editIngredientData.gram_weight}
+                                  disabled={isUpdatingIngredient || !editSelectedMeasurementType || 
+                                    (editSelectedMeasurementType === 'grams' && !editIngredientData.gram_weight) ||
+                                    (editSelectedMeasurementType === 'portion' && (!editSelectedPortionId || !editIngredientData.quantity))}
                                   className="submit-button"
                                 >
                                   {isUpdatingIngredient ? 'Saving...' : 'Save Changes'}
@@ -1275,15 +1464,9 @@ function App() {
                             <div className="ingredient-info">
                               <div className="ingredient-main">
                                 <span className="ingredient-food">{ingredient.food_description}</span>
-                                <span className="ingredient-weight">{ingredient.gram_weight}g</span>
-                              </div>
-                              <div className="ingredient-details">
-                                {ingredient.quantity && (
-                                  <span className="ingredient-quantity">Quantity: {ingredient.quantity}</span>
-                                )}
-                                {ingredient.measure_unit_id && (
-                                  <span className="ingredient-unit">Unit ID: {ingredient.measure_unit_id}</span>
-                                )}
+                                <span className="ingredient-weight">
+                                  {formatIngredientMeasurement(ingredient)} ({ingredient.gram_weight}g)
+                                </span>
                               </div>
                             </div>
                             <div className="ingredient-actions">
@@ -1419,6 +1602,9 @@ function App() {
                               quantity: '',
                               measure_unit_id: null
                             });
+                            setSelectedMeasurementType(null);
+                            setSelectedPortionId(null);
+                            setAvailablePortions([]);
                           }}
                           className="change-food-button"
                           type="button"
@@ -1428,39 +1614,100 @@ function App() {
                       </div>
 
                       <form onSubmit={handleAddIngredient} className="ingredient-form">
+                        {isLoadingPortions && (
+                          <p className="loading-message">Loading measurement options...</p>
+                        )}
                         <div className="form-group">
-                          <label htmlFor="ingredient-gram-weight">Gram Weight (required):</label>
-                          <input
-                            id="ingredient-gram-weight"
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            value={newIngredient.gram_weight}
-                            onChange={(e) =>
-                              setNewIngredient({ ...newIngredient, gram_weight: e.target.value })
-                            }
+                          <label htmlFor="ingredient-measurement-type">Measurement Type:</label>
+                          <select
+                            id="ingredient-measurement-type"
+                            value={selectedMeasurementType === 'grams' ? 'grams' : 
+                                   selectedPortionId ? `portion-${selectedPortionId}` : ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value === 'grams') {
+                                setSelectedMeasurementType('grams');
+                                setSelectedPortionId(null);
+                                setNewIngredient({ ...newIngredient, quantity: '', measure_unit_id: null });
+                              } else if (value.startsWith('portion-')) {
+                                const portionId = parseInt(value.replace('portion-', ''));
+                                setSelectedMeasurementType('portion');
+                                setSelectedPortionId(portionId);
+                                const selectedPortion = availablePortions.find(p => p.id === portionId);
+                                if (selectedPortion) {
+                                  setNewIngredient({ 
+                                    ...newIngredient, 
+                                    quantity: selectedPortion.amount.toString(),
+                                    measure_unit_id: null,
+                                    gram_weight: ''
+                                  });
+                                }
+                              } else {
+                                setSelectedMeasurementType(null);
+                                setSelectedPortionId(null);
+                              }
+                            }}
                             className="form-input"
-                            placeholder="Enter weight in grams"
                             required
-                          />
+                            disabled={isLoadingPortions}
+                          >
+                            <option value="">Select measurement type...</option>
+                            <option value="grams">Grams</option>
+                            {availablePortions.map((portion) => {
+                              const portionLabel = `${portion.amount}${portion.modifier ? ' ' + portion.modifier : ''}`;
+                              return (
+                                <option key={portion.id} value={`portion-${portion.id}`}>
+                                  {portionLabel}
+                                </option>
+                              );
+                            })}
+                          </select>
                         </div>
 
-                        <div className="form-group">
-                          <label htmlFor="ingredient-quantity">Quantity (optional):</label>
-                          <input
-                            id="ingredient-quantity"
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            value={newIngredient.quantity}
-                            onChange={(e) =>
-                              setNewIngredient({ ...newIngredient, quantity: e.target.value })
-                            }
-                            className="form-input"
-                            placeholder="Enter quantity (optional)"
-                          />
-                        </div>
+                        {selectedMeasurementType === 'grams' && (
+                          <div className="form-group">
+                            <label htmlFor="ingredient-gram-weight">Gram Weight (required):</label>
+                            <input
+                              id="ingredient-gram-weight"
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={newIngredient.gram_weight}
+                              onChange={(e) =>
+                                setNewIngredient({ ...newIngredient, gram_weight: e.target.value })
+                              }
+                              className="form-input"
+                              placeholder="Enter weight in grams"
+                              required
+                            />
+                          </div>
+                        )}
 
+                        {selectedMeasurementType === 'portion' && selectedPortionId && (() => {
+                          const selectedPortion = availablePortions.find(p => p.id === selectedPortionId);
+                          return selectedPortion ? (
+                            <div className="form-group">
+                              <label htmlFor="ingredient-quantity">Quantity (required):</label>
+                              <input
+                                id="ingredient-quantity"
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                value={newIngredient.quantity || selectedPortion.amount.toString()}
+                                onChange={(e) =>
+                                  setNewIngredient({ ...newIngredient, quantity: e.target.value })
+                                }
+                                className="form-input"
+                                placeholder={`Enter quantity (base: ${selectedPortion.amount}${selectedPortion.modifier ? ' ' + selectedPortion.modifier : ''})`}
+                                required
+                              />
+                            </div>
+                          ) : null;
+                        })()}
+
+                        {portionsError && (
+                          <p className="error-message">{portionsError}</p>
+                        )}
                         {ingredientCreateError && (
                           <p className="error-message">{ingredientCreateError}</p>
                         )}
@@ -1468,7 +1715,9 @@ function App() {
                         <div className="form-actions">
                           <button
                             type="submit"
-                            disabled={isCreatingIngredient || !newIngredient.gram_weight}
+                            disabled={isCreatingIngredient || !selectedMeasurementType || 
+                              (selectedMeasurementType === 'grams' && !newIngredient.gram_weight) ||
+                              (selectedMeasurementType === 'portion' && (!selectedPortionId || !newIngredient.quantity))}
                             className="submit-button"
                           >
                             {isCreatingIngredient ? 'Adding...' : 'Add Ingredient'}
@@ -1483,6 +1732,9 @@ function App() {
                                 quantity: '',
                                 measure_unit_id: null
                               });
+                              setSelectedMeasurementType(null);
+                              setSelectedPortionId(null);
+                              setAvailablePortions([]);
                               setIngredientCreateError(null);
                             }}
                             className="cancel-button"

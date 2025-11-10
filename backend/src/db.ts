@@ -64,6 +64,23 @@ export async function listFoodCategories() {
   return result.rows;
 }
 
+// Food portion functions
+export async function checkFoodExists(id: number): Promise<boolean> {
+  const result = await query(`SELECT 1 FROM foods WHERE id = $1`, [id]);
+  return !!result.rowCount;
+}
+
+export async function getFoodPortions(food_id: number) {
+  const result = await query(
+    `SELECT id, amount, modifier, gram_weight
+     FROM food_portions
+     WHERE food_id = $1
+     ORDER BY COALESCE(sequence_number, 999999), amount`,
+    [food_id]
+  );
+  return result.rows;
+}
+
 // User functions
 export async function createUser(
   email: string,
