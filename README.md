@@ -28,6 +28,12 @@ npm install
 cp backend/.env.example backend/.env
 ```
 
+   Configure the following environment variables in `backend/.env`:
+   - `OPENAI_API_KEY` - Required for recipe generation feature. Get your API key from [OpenAI](https://platform.openai.com/api-keys)
+   - `PORT` - Backend server port (default: 3001)
+   - `SESSION_SECRET` - Secret for session management
+   - Database connection variables (see `backend/.env.example` for details)
+
 3. Run development servers:
 ```bash
 npm run dev

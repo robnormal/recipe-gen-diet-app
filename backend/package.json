@@ -17,6 +17,7 @@
     "cors": "*",
     "express": "*",
     "express-session": "*",
+    "openai": "*",
     "pg": "*"
   },
   "devDependencies": {

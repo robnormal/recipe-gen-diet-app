@@ -81,6 +81,16 @@ export async function getFoodPortions(food_id: number) {
   return result.rows;
 }
 
+export async function getFoodById(id: number) {
+  const result = await query(
+    `SELECT id, description, calorie_density
+     FROM foods
+     WHERE id = $1`,
+    [id]
+  );
+  return result.rowCount === 0 ? null : result.rows[0];
+}
+
 // User functions
 export async function createUser(
   email: string,
