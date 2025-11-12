@@ -1456,19 +1456,16 @@ function App() {
                         <div className="ingredient-search-results">
                           <ul className="food-results">
                             {ingredientSearchResults.map((food, index) => (
-                              <li key={index} className="food-item">
-                                <div className="food-description">{food.description}</div>
+                              <li 
+                                key={index} 
+                                className="food-item"
+                                onClick={() => handleSelectFoodForIngredient(food)}
+                              >
                                 <div className="food-details">
+                                  <span className="food-description">{food.description}</span>
                                   <span className="calorie-density">
-                                    {food.calorie_density?.toFixed(1) || 'N/A'} kcal/g
+                                    {food.calorie_density?.toFixed(1) || 'N/A'}
                                   </span>
-                                  <button
-                                    onClick={() => handleSelectFoodForIngredient(food)}
-                                    className="add-food-button"
-                                    type="button"
-                                  >
-                                    Add
-                                  </button>
                                 </div>
                               </li>
                             ))}
