@@ -124,6 +124,13 @@ function App() {
   const [recipeError, setRecipeError] = useState<string | null>(null);
   const [recipeSuccess, setRecipeSuccess] = useState<string | null>(null);
 
+  // Recipe generation state
+  const [showGenerateForm, setShowGenerateForm] = useState<boolean>(false);
+  const [generateRecipeName, setGenerateRecipeName] = useState<string>('');
+  const [generatePrompt, setGeneratePrompt] = useState<string>('');
+  const [isGeneratingRecipe, setIsGeneratingRecipe] = useState<boolean>(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
   // Recipes list state
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoadingRecipes, setIsLoadingRecipes] = useState<boolean>(false);
@@ -421,6 +428,110 @@ function App() {
       console.error('Recipe creation error:', err);
     } finally {
       setIsCreatingRecipe(false);
+    }
+  };
+
+  const handleGenerateRecipe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsGeneratingRecipe(true);
+    setGenerateError(null);
+
+    try {
+      // Step 1: Generate recipe using AI
+      const generateResponse = await fetch('/api/recipes/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: generateRecipeName.trim(),
+          prompt: generatePrompt.trim()
+        }),
+      });
+
+      if (!generateResponse.ok) {
+        if (generateResponse.status === 401) {
+          setUser(null);
+          throw new Error('Session expired. Please login again.');
+        }
+        const errorData = await generateResponse.json();
+        throw new Error(errorData.error || 'Failed to generate recipe');
+      }
+
+      const generatedData: {
+        recipe: {
+          name: string;
+          description: string;
+          instructions: string | null;
+          servings: number | null;
+          total_time_minutes: number | null;
+        };
+        ingredients: Array<{
+          food_id: number;
+          gram_weight: number;
+          food_portion_id: number | null;
+          quantity: number | null;
+        }>;
+      } = await generateResponse.json();
+
+      // Step 2: Create the recipe in the database
+      const createResponse = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: generatedData.recipe.name,
+          description: generatedData.recipe.description,
+          instructions: generatedData.recipe.instructions,
+          servings: generatedData.recipe.servings,
+          total_time_minutes: generatedData.recipe.total_time_minutes
+        }),
+      });
+
+      if (!createResponse.ok) {
+        if (createResponse.status === 401) {
+          setUser(null);
+          throw new Error('Session expired. Please login again.');
+        }
+        const errorData = await createResponse.json();
+        throw new Error(errorData.error || 'Failed to create recipe');
+      }
+
+      const createdRecipe: Recipe = await createResponse.json();
+
+      // Step 3: Add all ingredients
+      for (const ingredient of generatedData.ingredients) {
+        try {
+          await createIngredient(createdRecipe.id, {
+            food_id: ingredient.food_id,
+            gram_weight: ingredient.gram_weight,
+            food_portion_id: ingredient.food_portion_id ?? undefined,
+            quantity: ingredient.quantity ?? undefined
+          });
+        } catch (ingredientErr) {
+          console.error('Error adding ingredient:', ingredientErr);
+          // Continue with other ingredients even if one fails
+        }
+      }
+
+      // Step 4: Clear form and show the generated recipe
+      setGenerateRecipeName('');
+      setGeneratePrompt('');
+      setShowGenerateForm(false);
+
+      // Refresh recipes list
+      await fetchRecipes();
+
+      // Load the recipe details to show it
+      await handleRecipeClick(createdRecipe);
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : 'Failed to generate recipe. Please try again.');
+      console.error('Recipe generation error:', err);
+    } finally {
+      setIsGeneratingRecipe(false);
     }
   };
 
@@ -1214,6 +1325,8 @@ function App() {
                   servings: '',
                   total_time_minutes: ''
                 });
+                setShowRecipeForm(false);
+                setShowGenerateForm(false);
               }}
               className="back-button"
             >
@@ -1725,14 +1838,22 @@ function App() {
       {!selectedRecipe && (
         <>
       <div className="recipe-section">
-        {!showRecipeForm ? (
-          <button
-            onClick={() => setShowRecipeForm(true)}
-            className="create-recipe-button"
-          >
-            Create New Recipe
-          </button>
-        ) : (
+        {!showRecipeForm && !showGenerateForm ? (
+          <div className="recipe-actions">
+            <button
+              onClick={() => setShowRecipeForm(true)}
+              className="create-recipe-button"
+            >
+              Create New Recipe
+            </button>
+            <button
+              onClick={() => setShowGenerateForm(true)}
+              className="create-recipe-button"
+            >
+              Generate Recipe with AI
+            </button>
+          </div>
+        ) : showRecipeForm ? (
           <div className="recipe-form-container">
             <h2>Create New Recipe</h2>
             <form onSubmit={handleCreateRecipe} className="recipe-form">
@@ -1769,6 +1890,60 @@ function App() {
                     setRecipeName('');
                     setRecipeError(null);
                     setRecipeSuccess(null);
+                  }}
+                  className="cancel-button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : (
+          <div className="recipe-form-container">
+            <h2>Generate Recipe with AI</h2>
+            <form onSubmit={handleGenerateRecipe} className="recipe-form">
+              <div className="form-group">
+                <label htmlFor="generate-recipe-name">Recipe Name:</label>
+                <input
+                  id="generate-recipe-name"
+                  type="text"
+                  value={generateRecipeName}
+                  onChange={(e) => setGenerateRecipeName(e.target.value)}
+                  required
+                  className="form-input"
+                  placeholder="Enter recipe name"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="generate-prompt">Recipe Prompt:</label>
+                <textarea
+                  id="generate-prompt"
+                  value={generatePrompt}
+                  onChange={(e) => setGeneratePrompt(e.target.value)}
+                  required
+                  className="form-input"
+                  placeholder="Describe the recipe you want to generate (e.g., 'A healthy vegetarian pasta dish with tomatoes and basil')"
+                  rows={4}
+                />
+              </div>
+              {generateError && (
+                <p className="error-message">{generateError}</p>
+              )}
+              <div className="form-actions">
+                <button
+                  type="submit"
+                  disabled={isGeneratingRecipe}
+                  className="submit-button"
+                >
+                  {isGeneratingRecipe ? 'Generating...' : 'Generate Recipe'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowGenerateForm(false);
+                    setGenerateRecipeName('');
+                    setGeneratePrompt('');
+                    setGenerateError(null);
                   }}
                   className="cancel-button"
                 >
