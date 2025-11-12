@@ -1181,7 +1181,7 @@ function App() {
       {selectedRecipe && (
         <div className="recipe-detail-container">
           <div className="recipe-detail-header">
-            <h2>Recipe Details</h2>
+            <h2>{selectedRecipe.name}</h2>
             <button
               onClick={() => {
                 setSelectedRecipe(null);
