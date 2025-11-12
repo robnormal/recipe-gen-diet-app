@@ -109,14 +109,14 @@ CREATE TABLE ingredients (
     id SERIAL PRIMARY KEY,
     recipe_id INTEGER NOT NULL,
     food_id INTEGER NOT NULL,
-    measure_unit_id INTEGER,
+    food_portion_id INTEGER,
     quantity REAL,
     gram_weight REAL NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
     FOREIGN KEY (food_id) REFERENCES foods(id) ON DELETE RESTRICT,
-    FOREIGN KEY (measure_unit_id) REFERENCES measure_units(id) ON DELETE SET NULL
+    FOREIGN KEY (food_portion_id) REFERENCES food_portions(id) ON DELETE SET NULL
 );
 
 -- Table: session
@@ -140,6 +140,7 @@ CREATE INDEX idx_foods_description_tsvector ON foods USING GIN(description_tsvec
 CREATE INDEX idx_recipes_user_id ON recipes(user_id);
 CREATE INDEX idx_ingredients_recipe_id ON ingredients(recipe_id);
 CREATE INDEX idx_ingredients_food_id ON ingredients(food_id);
+CREATE INDEX idx_ingredients_food_portion_id ON ingredients(food_portion_id);
 CREATE INDEX idx_session_expire ON session(expire);
 
 -- Comments for documentation

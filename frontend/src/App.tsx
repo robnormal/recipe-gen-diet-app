@@ -61,7 +61,7 @@ interface Ingredient {
   id: number;
   recipe_id: number;
   food_id: number;
-  measure_unit_id: number | null;
+  food_portion_id: number | null;
   quantity: number | null;
   gram_weight: number;
   created_at: string;
@@ -70,6 +70,9 @@ interface Ingredient {
 
 interface IngredientWithFood extends Ingredient {
   food_description: string;
+  calorie_density: number | null;
+  portion_amount: number | null;
+  portion_modifier: string | null;
 }
 
 interface FoodPortion {
@@ -88,9 +91,6 @@ function App() {
   // Authentication state
   const [user, setUser] = useState<User | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
-
-  // Main app state
-  const [healthStatus, setHealthStatus] = useState<string>('');
 
   // Food category state
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
@@ -166,13 +166,11 @@ function App() {
     food_description: string;
     gram_weight: string;
     quantity: string;
-    measure_unit_id: number | null;
   }>({
     food_id: null,
     food_description: '',
     gram_weight: '',
-    quantity: '',
-    measure_unit_id: null
+    quantity: ''
   });
   const [isCreatingIngredient, setIsCreatingIngredient] = useState<boolean>(false);
   const [ingredientCreateError, setIngredientCreateError] = useState<string | null>(null);
@@ -198,13 +196,11 @@ function App() {
     food_description: string;
     gram_weight: string;
     quantity: string;
-    measure_unit_id: number | null;
   }>({
     food_id: null,
     food_description: '',
     gram_weight: '',
-    quantity: '',
-    measure_unit_id: null
+    quantity: ''
   });
   const [isUpdatingIngredient, setIsUpdatingIngredient] = useState<boolean>(false);
   const [ingredientUpdateError, setIngredientUpdateError] = useState<string | null>(null);
@@ -298,13 +294,6 @@ function App() {
   useEffect(() => {
     // Only fetch health status, categories, and recipes if authenticated
     if (user) {
-      fetch('/api/health', {
-        credentials: 'include'
-      })
-        .then((res) => res.json())
-        .then((data) => setHealthStatus(data.message))
-        .catch((err) => console.error('Failed to fetch health status:', err));
-
       fetchCategories();
       fetchRecipes();
     } else {
@@ -537,7 +526,7 @@ function App() {
     ingredientData: {
       food_id: number;
       gram_weight: number;
-      measure_unit_id?: number | null;
+      food_portion_id?: number | null;
       quantity?: number | null;
     }
   ): Promise<Ingredient> => {
@@ -571,7 +560,7 @@ function App() {
     data: {
       food_id?: number;
       gram_weight?: number;
-      measure_unit_id?: number | null;
+      food_portion_id?: number | null;
       quantity?: number | null;
     }
   ): Promise<Ingredient> => {
@@ -618,12 +607,23 @@ function App() {
     }
   };
 
-  // Helper function to format ingredient measurement
-  const formatIngredientMeasurement = (ingredient: IngredientWithFood): string => {
-    if (ingredient.quantity) {
-      return `${ingredient.quantity}`;
+  // Helper function to get ingredient quantity
+  const getIngredientQuantity = (ingredient: IngredientWithFood): string => {
+    if (ingredient.quantity !== null) {
+      return ingredient.quantity.toString();
     }
-    return 'grams';
+    return ingredient.gram_weight.toString();
+  };
+
+  // Helper function to get ingredient unit/modifier (portion description)
+  const getIngredientUnit = (ingredient: IngredientWithFood): string => {
+    if (ingredient.food_portion_id && ingredient.portion_amount !== null) {
+      // Show portion description: amount + modifier (e.g., "2 cups" or "1 tablespoon")
+      const amount = ingredient.portion_amount.toString();
+      const modifier = ingredient.portion_modifier ? ` ${ingredient.portion_modifier}` : '';
+      return `${amount}${modifier}`;
+    }
+    return 'g';
   };
 
   const handleRecipeClick = async (recipe: Recipe) => {
@@ -786,8 +786,7 @@ function App() {
       food_id: food.id,
       food_description: food.description,
       gram_weight: '',
-      quantity: '',
-      measure_unit_id: null
+      quantity: ''
     });
     setIngredientSearchQuery('');
     setIngredientSearchResults([]);
@@ -851,12 +850,12 @@ function App() {
       const ingredientData: {
         food_id: number;
         gram_weight: number;
-        measure_unit_id?: number | null;
+        food_portion_id?: number | null;
         quantity?: number | null;
       } = {
         food_id: newIngredient.food_id,
         gram_weight: gramWeight,
-        measure_unit_id: null,
+        food_portion_id: selectedMeasurementType === 'portion' && selectedPortionId ? selectedPortionId : null,
         quantity: quantity,
       };
 
@@ -871,8 +870,7 @@ function App() {
         food_id: null,
         food_description: '',
         gram_weight: '',
-        quantity: '',
-        measure_unit_id: null
+        quantity: ''
       });
       setSelectedMeasurementType(null);
       setSelectedPortionId(null);
@@ -891,8 +889,7 @@ function App() {
       food_id: ingredient.food_id,
       food_description: ingredient.food_description,
       gram_weight: ingredient.gram_weight.toString(),
-      quantity: ingredient.quantity?.toString() || '',
-      measure_unit_id: ingredient.measure_unit_id
+      quantity: ingredient.quantity?.toString() || ''
     });
     setIngredientUpdateError(null);
     setEditSelectedMeasurementType(null);
@@ -900,8 +897,9 @@ function App() {
     setEditPortionsError(null);
 
     // Determine measurement type
-    if (ingredient.quantity) {
+    if (ingredient.food_portion_id) {
       setEditSelectedMeasurementType('portion');
+      setEditSelectedPortionId(ingredient.food_portion_id);
     } else {
       setEditSelectedMeasurementType('grams');
     }
@@ -911,17 +909,6 @@ function App() {
     try {
       const portions = await fetchFoodPortions(ingredient.food_id);
       setEditAvailablePortions(portions);
-
-      // If editing a portion-based ingredient, try to find a matching portion
-      // by matching the quantity to a portion's amount (best effort)
-      if (ingredient.quantity) {
-        const matchingPortion = portions.find(
-          p => p.amount === ingredient.quantity
-        );
-        if (matchingPortion) {
-          setEditSelectedPortionId(matchingPortion.id);
-        }
-      }
     } catch (err) {
       setEditPortionsError(err instanceof Error ? err.message : 'Failed to load portions');
       setEditAvailablePortions([]);
@@ -936,8 +923,7 @@ function App() {
       food_id: null,
       food_description: '',
       gram_weight: '',
-      quantity: '',
-      measure_unit_id: null
+      quantity: ''
     });
     setIngredientUpdateError(null);
     setEditSelectedMeasurementType(null);
@@ -945,8 +931,10 @@ function App() {
     setEditAvailablePortions([]);
   };
 
-  const handleUpdateIngredient = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleUpdateIngredient = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
 
     if (!selectedRecipe || !editingIngredientId || !editIngredientData.food_id) {
       setIngredientUpdateError('Food is required');
@@ -959,6 +947,7 @@ function App() {
     try {
       let gramWeight: number;
       let quantity: number | null = null;
+      let foodPortionId: number | null = null;
 
       if (editSelectedMeasurementType === 'grams') {
         // Direct gram entry
@@ -981,6 +970,7 @@ function App() {
         // Calculate gram_weight: (user_quantity / portion.amount) * portion.gram_weight
         gramWeight = (userQuantity / selectedPortion.amount) * selectedPortion.gram_weight;
         quantity = userQuantity;
+        foodPortionId = editSelectedPortionId;
       } else {
         throw new Error('Please select a measurement type');
       }
@@ -988,11 +978,11 @@ function App() {
       const updateData: {
         food_id?: number;
         gram_weight?: number;
-        measure_unit_id?: number | null;
+        food_portion_id?: number | null;
         quantity?: number | null;
       } = {
         gram_weight: gramWeight,
-        measure_unit_id: null,
+        food_portion_id: foodPortionId,
         quantity: quantity,
       };
 
@@ -1186,7 +1176,6 @@ function App() {
           </button>
         </div>
       </div>
-      <p className="health-status">{healthStatus || 'Connecting to backend...'}</p>
 
       {/* Recipe Detail Form */}
       {selectedRecipe && (
@@ -1207,8 +1196,7 @@ function App() {
                   food_id: null,
                   food_description: '',
                   gram_weight: '',
-                  quantity: '',
-                  measure_unit_id: null
+                  quantity: ''
                 });
                 setIngredientCreateError(null);
                 setEditingIngredientId(null);
@@ -1216,8 +1204,7 @@ function App() {
                   food_id: null,
                   food_description: '',
                   gram_weight: '',
-                  quantity: '',
-                  measure_unit_id: null
+                  quantity: ''
                 });
                 setIngredientUpdateError(null);
                 setRecipeFormData({
@@ -1237,91 +1224,8 @@ function App() {
           {isLoadingRecipe ? (
             <p className="loading-message">Loading recipe details...</p>
           ) : (
-            <div className="recipe-detail-form">
-              <form onSubmit={handleUpdateRecipe} className="recipe-form">
-                <div className="form-group">
-                  <label htmlFor="detail-recipe-name">Recipe Name:</label>
-                  <input
-                    id="detail-recipe-name"
-                    type="text"
-                    value={recipeFormData.name}
-                    onChange={(e) => setRecipeFormData({ ...recipeFormData, name: e.target.value })}
-                    className="form-input"
-                    placeholder="Enter recipe name"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="detail-recipe-description">Description:</label>
-                  <textarea
-                    id="detail-recipe-description"
-                    value={recipeFormData.description}
-                    onChange={(e) => setRecipeFormData({ ...recipeFormData, description: e.target.value })}
-                    className="form-input"
-                    placeholder="Enter recipe description (optional)"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="detail-recipe-instructions">Instructions:</label>
-                  <textarea
-                    id="detail-recipe-instructions"
-                    value={recipeFormData.instructions}
-                    onChange={(e) => setRecipeFormData({ ...recipeFormData, instructions: e.target.value })}
-                    className="form-input"
-                    placeholder="Enter recipe instructions (optional)"
-                    rows={6}
-                  />
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="detail-recipe-servings">Servings:</label>
-                    <input
-                      id="detail-recipe-servings"
-                      type="number"
-                      min="1"
-                      value={recipeFormData.servings}
-                      onChange={(e) => setRecipeFormData({ ...recipeFormData, servings: e.target.value })}
-                      className="form-input"
-                      placeholder="Number of servings"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="detail-recipe-time">Total Time (minutes):</label>
-                    <input
-                      id="detail-recipe-time"
-                      type="number"
-                      min="1"
-                      value={recipeFormData.total_time_minutes}
-                      onChange={(e) => setRecipeFormData({ ...recipeFormData, total_time_minutes: e.target.value })}
-                      className="form-input"
-                      placeholder="Total time in minutes"
-                    />
-                  </div>
-                </div>
-
-                {recipeUpdateError && (
-                  <p className="error-message">{recipeUpdateError}</p>
-                )}
-                {recipeUpdateSuccess && (
-                  <p className="success-message">{recipeUpdateSuccess}</p>
-                )}
-
-                <div className="form-actions">
-                  <button
-                    type="submit"
-                    disabled={isUpdatingRecipe}
-                    className="submit-button"
-                  >
-                    {isUpdatingRecipe ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-
+            <>
+              {/* Ingredients Table - shown at top */}
               <div className="ingredients-section">
                 <h3>Ingredients</h3>
                 {isLoadingIngredients ? (
@@ -1331,179 +1235,162 @@ function App() {
                 ) : ingredients.length === 0 ? (
                   <p className="no-results">No ingredients yet. Add ingredients below.</p>
                 ) : (
-                  <ul className="ingredients-list">
-                    {ingredients.map((ingredient) => (
-                      <li key={ingredient.id} className="ingredient-item">
-                        {editingIngredientId === ingredient.id ? (
-                          <div className="edit-ingredient-form">
-                            <form onSubmit={handleUpdateIngredient} className="ingredient-form">
-                              <div className="selected-food">
-                                <strong>Food:</strong> {editIngredientData.food_description}
-                              </div>
-
-                              {isLoadingEditPortions && (
-                                <p className="loading-message">Loading measurement options...</p>
-                              )}
-                              <div className="form-group">
-                                <label htmlFor={`edit-ingredient-measurement-type-${ingredient.id}`}>Measurement Type:</label>
-                                <select
-                                  id={`edit-ingredient-measurement-type-${ingredient.id}`}
-                                  value={editSelectedMeasurementType === 'grams' ? 'grams' : 
-                                         editSelectedPortionId ? `portion-${editSelectedPortionId}` : ''}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    if (value === 'grams') {
-                                      setEditSelectedMeasurementType('grams');
-                                      setEditSelectedPortionId(null);
-                                      setEditIngredientData({ ...editIngredientData, quantity: '', measure_unit_id: null });
-                                    } else if (value.startsWith('portion-')) {
-                                      const portionId = parseInt(value.replace('portion-', ''));
-                                      setEditSelectedMeasurementType('portion');
-                                      setEditSelectedPortionId(portionId);
-                                      const selectedPortion = editAvailablePortions.find(p => p.id === portionId);
-                                      if (selectedPortion) {
-                                        setEditIngredientData({ 
-                                          ...editIngredientData, 
-                                          quantity: selectedPortion.amount.toString(),
-                                          measure_unit_id: null,
-                                          gram_weight: ''
-                                        });
+                  <table className="ingredients-table">
+                    <thead>
+                      <tr>
+                        <th>Food Name</th>
+                        <th>Quantity</th>
+                        <th>Unit</th>
+                        <th>Calorie Density</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ingredients.map((ingredient) => (
+                        <tr key={ingredient.id} className={editingIngredientId === ingredient.id ? 'editing-row' : ''}>
+                          <td>{ingredient.food_description}</td>
+                          <td>
+                            {editingIngredientId === ingredient.id ? (
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                value={editSelectedMeasurementType === 'grams' 
+                                  ? editIngredientData.gram_weight 
+                                  : (editIngredientData.quantity || '')}
+                                onChange={(e) => {
+                                  if (editSelectedMeasurementType === 'grams') {
+                                    setEditIngredientData({ ...editIngredientData, gram_weight: e.target.value });
+                                  } else {
+                                    setEditIngredientData({ ...editIngredientData, quantity: e.target.value });
+                                  }
+                                }}
+                                className="form-input inline-input"
+                                placeholder="0"
+                                required
+                              />
+                            ) : (
+                              getIngredientQuantity(ingredient)
+                            )}
+                          </td>
+                          <td>
+                            {editingIngredientId === ingredient.id ? (
+                              <>
+                                {isLoadingEditPortions ? (
+                                  <span>Loading...</span>
+                                ) : (
+                                  <select
+                                    value={editSelectedMeasurementType === 'grams' ? 'grams' : 
+                                           editSelectedPortionId ? `portion-${editSelectedPortionId}` : ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      if (value === 'grams') {
+                                        setEditSelectedMeasurementType('grams');
+                                        setEditSelectedPortionId(null);
+                                        setEditIngredientData({ ...editIngredientData, quantity: '' });
+                                      } else if (value.startsWith('portion-')) {
+                                        const portionId = parseInt(value.replace('portion-', ''));
+                                        setEditSelectedMeasurementType('portion');
+                                        setEditSelectedPortionId(portionId);
+                                        const selectedPortion = editAvailablePortions.find(p => p.id === portionId);
+                                        if (selectedPortion) {
+                                          // Only set quantity if it's empty, otherwise keep user's input
+                                          const newQuantity = editIngredientData.quantity || selectedPortion.amount.toString();
+                                          setEditIngredientData({ 
+                                            ...editIngredientData, 
+                                            quantity: newQuantity,
+                                            gram_weight: ''
+                                          });
+                                        }
+                                      } else {
+                                        setEditSelectedMeasurementType(null);
+                                        setEditSelectedPortionId(null);
                                       }
-                                    } else {
-                                      setEditSelectedMeasurementType(null);
-                                      setEditSelectedPortionId(null);
-                                    }
-                                  }}
-                                  className="form-input"
-                                  required
-                                  disabled={isLoadingEditPortions}
-                                >
-                                  <option value="">Select measurement type...</option>
-                                  <option value="grams">Grams</option>
-                                  {editAvailablePortions.map((portion) => {
-                                    const portionLabel = `${portion.amount}${portion.modifier ? ' ' + portion.modifier : ''}`;
-                                    return (
-                                      <option key={portion.id} value={`portion-${portion.id}`}>
-                                        {portionLabel}
-                                      </option>
-                                    );
-                                  })}
-                                </select>
-                              </div>
-
-                              {editSelectedMeasurementType === 'grams' && (
-                                <div className="form-group">
-                                  <label htmlFor={`edit-ingredient-gram-weight-${ingredient.id}`}>Gram Weight (required):</label>
-                                  <input
-                                    id={`edit-ingredient-gram-weight-${ingredient.id}`}
-                                    type="number"
-                                    step="0.1"
-                                    min="0"
-                                    value={editIngredientData.gram_weight}
-                                    onChange={(e) =>
-                                      setEditIngredientData({ ...editIngredientData, gram_weight: e.target.value })
-                                    }
-                                    className="form-input"
-                                    placeholder="Enter weight in grams"
+                                    }}
+                                    className="form-input inline-select"
                                     required
-                                  />
-                                </div>
-                              )}
-
-                              {editSelectedMeasurementType === 'portion' && editSelectedPortionId && (() => {
-                                const selectedPortion = editAvailablePortions.find(p => p.id === editSelectedPortionId);
-                                return selectedPortion ? (
-                                  <div className="form-group">
-                                    <label htmlFor={`edit-ingredient-quantity-${ingredient.id}`}>Quantity (required):</label>
-                                    <input
-                                      id={`edit-ingredient-quantity-${ingredient.id}`}
-                                      type="number"
-                                      step="0.1"
-                                      min="0"
-                                      value={editIngredientData.quantity || selectedPortion.amount.toString()}
-                                      onChange={(e) =>
-                                        setEditIngredientData({ ...editIngredientData, quantity: e.target.value })
-                                      }
-                                      className="form-input"
-                                      placeholder={`Enter quantity (base: ${selectedPortion.amount}${selectedPortion.modifier ? ' ' + selectedPortion.modifier : ''})`}
-                                      required
-                                    />
-                                  </div>
-                                ) : null;
-                              })()}
-
-                              {editPortionsError && (
-                                <p className="error-message">{editPortionsError}</p>
-                              )}
-                              {ingredientUpdateError && (
-                                <p className="error-message">{ingredientUpdateError}</p>
-                              )}
-
-                              <div className="form-actions">
+                                    disabled={isLoadingEditPortions}
+                                  >
+                                    <option value="">Select...</option>
+                                    <option value="grams">g</option>
+                                    {editAvailablePortions.map((portion) => {
+                                      const modifier = portion.modifier ? ` ${portion.modifier}` : '';
+                                      const portionLabel = `${modifier}`;
+                                      return (
+                                        <option key={portion.id} value={`portion-${portion.id}`}>
+                                          {portionLabel}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+                                )}
+                              </>
+                            ) : (
+                              getIngredientUnit(ingredient)
+                            )}
+                          </td>
+                          <td>{ingredient.calorie_density ? `${ingredient.calorie_density.toFixed(1)} kcal/g` : 'N/A'}</td>
+                          <td>
+                            {editingIngredientId === ingredient.id ? (
+                              <div className="ingredient-actions">
                                 <button
-                                  type="submit"
+                                  onClick={handleUpdateIngredient}
                                   disabled={isUpdatingIngredient || !editSelectedMeasurementType || 
                                     (editSelectedMeasurementType === 'grams' && !editIngredientData.gram_weight) ||
                                     (editSelectedMeasurementType === 'portion' && (!editSelectedPortionId || !editIngredientData.quantity))}
-                                  className="submit-button"
+                                  className="edit-button"
+                                  type="button"
                                 >
-                                  {isUpdatingIngredient ? 'Saving...' : 'Save Changes'}
+                                  {isUpdatingIngredient ? 'Saving...' : 'Save'}
                                 </button>
                                 <button
-                                  type="button"
                                   onClick={handleCancelEditIngredient}
                                   className="cancel-button"
+                                  type="button"
                                 >
                                   Cancel
                                 </button>
+                                {(ingredientUpdateError || editPortionsError) && (
+                                  <span className="error-text">{ingredientUpdateError || editPortionsError}</span>
+                                )}
                               </div>
-                            </form>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="ingredient-info">
-                              <div className="ingredient-main">
-                                <span className="ingredient-food">{ingredient.food_description}</span>
-                                <span className="ingredient-weight">
-                                  {formatIngredientMeasurement(ingredient)} ({ingredient.gram_weight}g)
-                                </span>
+                            ) : (
+                              <div className="ingredient-actions">
+                                <button
+                                  onClick={() => handleStartEditIngredient(ingredient)}
+                                  className="edit-button"
+                                  type="button"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (!selectedRecipe) return;
+                                    if (!window.confirm('Are you sure you want to delete this ingredient?')) {
+                                      return;
+                                    }
+                                    try {
+                                      await deleteIngredient(selectedRecipe.id, ingredient.id);
+                                      // Refresh ingredients list
+                                      const ingredientsList = await fetchIngredients(selectedRecipe.id);
+                                      setIngredients(ingredientsList);
+                                    } catch (err) {
+                                      setIngredientError(err instanceof Error ? err.message : 'Failed to delete ingredient');
+                                      console.error('Delete ingredient error:', err);
+                                    }
+                                  }}
+                                  className="delete-button"
+                                  type="button"
+                                >
+                                  Delete
+                                </button>
                               </div>
-                            </div>
-                            <div className="ingredient-actions">
-                              <button
-                                onClick={() => handleStartEditIngredient(ingredient)}
-                                className="edit-button"
-                                type="button"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  if (!selectedRecipe) return;
-                                  if (!window.confirm('Are you sure you want to delete this ingredient?')) {
-                                    return;
-                                  }
-                                  try {
-                                    await deleteIngredient(selectedRecipe.id, ingredient.id);
-                                    // Refresh ingredients list
-                                    const ingredientsList = await fetchIngredients(selectedRecipe.id);
-                                    setIngredients(ingredientsList);
-                                  } catch (err) {
-                                    setIngredientError(err instanceof Error ? err.message : 'Failed to delete ingredient');
-                                    console.error('Delete ingredient error:', err);
-                                  }
-                                }}
-                                className="delete-button"
-                                type="button"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
 
                 <div className="add-ingredient-section">
@@ -1599,8 +1486,7 @@ function App() {
                               food_id: null,
                               food_description: '',
                               gram_weight: '',
-                              quantity: '',
-                              measure_unit_id: null
+                              quantity: ''
                             });
                             setSelectedMeasurementType(null);
                             setSelectedPortionId(null);
@@ -1628,7 +1514,7 @@ function App() {
                               if (value === 'grams') {
                                 setSelectedMeasurementType('grams');
                                 setSelectedPortionId(null);
-                                setNewIngredient({ ...newIngredient, quantity: '', measure_unit_id: null });
+                                setNewIngredient({ ...newIngredient, quantity: '' });
                               } else if (value.startsWith('portion-')) {
                                 const portionId = parseInt(value.replace('portion-', ''));
                                 setSelectedMeasurementType('portion');
@@ -1638,7 +1524,6 @@ function App() {
                                   setNewIngredient({ 
                                     ...newIngredient, 
                                     quantity: selectedPortion.amount.toString(),
-                                    measure_unit_id: null,
                                     gram_weight: ''
                                   });
                                 }
@@ -1654,7 +1539,8 @@ function App() {
                             <option value="">Select measurement type...</option>
                             <option value="grams">Grams</option>
                             {availablePortions.map((portion) => {
-                              const portionLabel = `${portion.amount}${portion.modifier ? ' ' + portion.modifier : ''}`;
+                              const modifier = portion.modifier ? ` ${portion.modifier}` : '';
+                              const portionLabel = `${portion.amount} ${modifier}`;
                               return (
                                 <option key={portion.id} value={`portion-${portion.id}`}>
                                   {portionLabel}
@@ -1729,8 +1615,7 @@ function App() {
                                 food_id: null,
                                 food_description: '',
                                 gram_weight: '',
-                                quantity: '',
-                                measure_unit_id: null
+                                quantity: ''
                               });
                               setSelectedMeasurementType(null);
                               setSelectedPortionId(null);
@@ -1747,7 +1632,94 @@ function App() {
                   )}
                 </div>
               </div>
-            </div>
+
+              {/* Recipe Form */}
+              <div className="recipe-detail-form">
+                <form onSubmit={handleUpdateRecipe} className="recipe-form">
+                <div className="form-group">
+                  <label htmlFor="detail-recipe-name">Recipe Name:</label>
+                  <input
+                    id="detail-recipe-name"
+                    type="text"
+                    value={recipeFormData.name}
+                    onChange={(e) => setRecipeFormData({ ...recipeFormData, name: e.target.value })}
+                    className="form-input"
+                    placeholder="Enter recipe name"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="detail-recipe-description">Description:</label>
+                  <textarea
+                    id="detail-recipe-description"
+                    value={recipeFormData.description}
+                    onChange={(e) => setRecipeFormData({ ...recipeFormData, description: e.target.value })}
+                    className="form-input"
+                    placeholder="Enter recipe description (optional)"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="detail-recipe-instructions">Instructions:</label>
+                  <textarea
+                    id="detail-recipe-instructions"
+                    value={recipeFormData.instructions}
+                    onChange={(e) => setRecipeFormData({ ...recipeFormData, instructions: e.target.value })}
+                    className="form-input"
+                    placeholder="Enter recipe instructions (optional)"
+                    rows={6}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="detail-recipe-servings">Servings:</label>
+                    <input
+                      id="detail-recipe-servings"
+                      type="number"
+                      min="1"
+                      value={recipeFormData.servings}
+                      onChange={(e) => setRecipeFormData({ ...recipeFormData, servings: e.target.value })}
+                      className="form-input"
+                      placeholder="Number of servings"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="detail-recipe-time">Total Time (minutes):</label>
+                    <input
+                      id="detail-recipe-time"
+                      type="number"
+                      min="1"
+                      value={recipeFormData.total_time_minutes}
+                      onChange={(e) => setRecipeFormData({ ...recipeFormData, total_time_minutes: e.target.value })}
+                      className="form-input"
+                      placeholder="Total time in minutes"
+                    />
+                  </div>
+                </div>
+
+                {recipeUpdateError && (
+                  <p className="error-message">{recipeUpdateError}</p>
+                )}
+                {recipeUpdateSuccess && (
+                  <p className="success-message">{recipeUpdateSuccess}</p>
+                )}
+
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    disabled={isUpdatingRecipe}
+                    className="submit-button"
+                  >
+                    {isUpdatingRecipe ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+              </div>
+            </>
           )}
         </div>
       )}

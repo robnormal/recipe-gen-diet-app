@@ -72,10 +72,10 @@ export async function checkFoodExists(id: number): Promise<boolean> {
 
 export async function getFoodPortions(food_id: number) {
   const result = await query(
-    `SELECT id, amount, modifier, gram_weight
-     FROM food_portions
-     WHERE food_id = $1
-     ORDER BY COALESCE(sequence_number, 999999), amount`,
+    `SELECT fp.id, fp.amount, fp.modifier, fp.gram_weight
+     FROM food_portions fp
+     WHERE fp.food_id = $1
+     ORDER BY COALESCE(fp.sequence_number, 999999), fp.amount`,
     [food_id]
   );
   return result.rows;
@@ -224,22 +224,22 @@ export async function createIngredient(
   recipe_id: number,
   food_id: number,
   gram_weight: number,
-  measure_unit_id: number | null = null,
+  food_portion_id: number | null = null,
   quantity: number | null = null
 ) {
   const result = await query(
-    `INSERT INTO ingredients (recipe_id, food_id, measure_unit_id, quantity, gram_weight)
+    `INSERT INTO ingredients (recipe_id, food_id, food_portion_id, quantity, gram_weight)
      VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, recipe_id, food_id, measure_unit_id, quantity, gram_weight,
+     RETURNING id, recipe_id, food_id, food_portion_id, quantity, gram_weight,
          created_at, updated_at`,
-    [recipe_id, food_id, measure_unit_id, quantity, gram_weight]
+    [recipe_id, food_id, food_portion_id, quantity, gram_weight]
   );
   return result.rows[0];
 }
 
 export async function getIngredientById(id: number) {
   const result = await query(
-    `SELECT id, recipe_id, food_id, measure_unit_id, quantity, gram_weight,
+    `SELECT id, recipe_id, food_id, food_portion_id, quantity, gram_weight,
             created_at, updated_at
      FROM ingredients WHERE id = $1`,
     [id]
@@ -249,7 +249,7 @@ export async function getIngredientById(id: number) {
 
 export async function getIngredientsByRecipeId(recipe_id: number) {
   const result = await query(
-    `SELECT id, recipe_id, food_id, measure_unit_id, quantity, gram_weight,
+    `SELECT id, recipe_id, food_id, food_portion_id, quantity, gram_weight,
               created_at, updated_at
        FROM ingredients
        WHERE recipe_id = $1
@@ -261,10 +261,12 @@ export async function getIngredientsByRecipeId(recipe_id: number) {
 
 export async function getIngredientsWithFoods(recipe_id: number) {
   const result = await query(
-    `SELECT i.id, i.recipe_id, i.food_id, i.measure_unit_id, i.quantity, i.gram_weight,
-              i.created_at, i.updated_at, f.description as food_description
+    `SELECT i.id, i.recipe_id, i.food_id, i.food_portion_id, i.quantity, i.gram_weight,
+              i.created_at, i.updated_at, f.description as food_description, f.calorie_density,
+              fp.amount as portion_amount, fp.modifier as portion_modifier
        FROM ingredients i
        JOIN foods f ON i.food_id = f.id
+       LEFT JOIN food_portions fp ON i.food_portion_id = fp.id
        WHERE i.recipe_id = $1
        ORDER BY i.id`,
     [recipe_id]
@@ -276,7 +278,7 @@ export async function updateIngredient(
   id: number,
   food_id: number | null = null,
   gram_weight: number | null = null,
-  measure_unit_id: number | null = null,
+  food_portion_id: number | null = null,
   quantity: number | null = null
 ) {
   const result = await query(
@@ -284,13 +286,13 @@ export async function updateIngredient(
      SET
          food_id = COALESCE($2, food_id),
          gram_weight = COALESCE($3, gram_weight),
-         measure_unit_id = COALESCE($4, measure_unit_id),
+         food_portion_id = COALESCE($4, food_portion_id),
          quantity = COALESCE($5, quantity),
          updated_at = NOW()
      WHERE id = $1
-     RETURNING id, recipe_id, food_id, measure_unit_id, quantity, gram_weight,
+     RETURNING id, recipe_id, food_id, food_portion_id, quantity, gram_weight,
          created_at, updated_at`,
-    [id, food_id, gram_weight, measure_unit_id, quantity]
+    [id, food_id, gram_weight, food_portion_id, quantity]
   );
   return result.rowCount === 0 ? null : result.rows[0];
 }

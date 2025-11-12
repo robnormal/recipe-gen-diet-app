@@ -398,7 +398,7 @@ function sendGenericError(error: unknown, res: express.Response) {
 
 app.post('/api/recipes/:recipeId/ingredients', requireAuth, requireRecipe, async (req, res) => {
   const { recipeId } = req.params;
-  const { food_id, gram_weight, measure_unit_id, quantity } = req.body;
+  const { food_id, gram_weight, food_portion_id, quantity } = req.body;
 
   if (!food_id || gram_weight === undefined) {
     return sendError(res, 400, 'Fields "food_id" and "gram_weight" are required');
@@ -409,14 +409,14 @@ app.post('/api/recipes/:recipeId/ingredients', requireAuth, requireRecipe, async
       parseInt(recipeId),
       parseInt(food_id),
       parseFloat(gram_weight),
-      inputToNumber(measure_unit_id),
+      inputToNumber(food_portion_id),
       quantity !== undefined ? parseFloat(quantity) : null
     );
     res.status(201).json(ingredient);
   } catch (error: unknown) {
     if (sendPgConstraintError(res, error, {
       food_id: [404, 'Food not found'],
-      measure_unit_id: [404, 'Measure unit not found'],
+      food_portion_id: [404, 'Food portion not found'],
       '': [400, 'Invalid reference'],
     })) {
       return;
@@ -427,14 +427,14 @@ app.post('/api/recipes/:recipeId/ingredients', requireAuth, requireRecipe, async
 
 app.put('/api/recipes/:recipeId/ingredients/:ingredientId', requireAuth, requireRecipe, requireIngredient, async (req, res) => {
   const { ingredientId } = req.params;
-  const { food_id, gram_weight, measure_unit_id, quantity } = req.body;
+  const { food_id, gram_weight, food_portion_id, quantity } = req.body;
 
   try {
     const ingredient = await updateIngredient(
       parseInt(ingredientId),
       food_id !== undefined ? parseInt(food_id) : null,
       gram_weight !== undefined ? parseFloat(gram_weight) : null,
-      measure_unit_id !== undefined ? inputToNumber(measure_unit_id) : null,
+      food_portion_id !== undefined ? inputToNumber(food_portion_id) : null,
       quantity !== undefined ? parseFloat(quantity) : null
     );
     if (!ingredient) {
@@ -444,7 +444,7 @@ app.put('/api/recipes/:recipeId/ingredients/:ingredientId', requireAuth, require
   } catch (error: unknown) {
     if (sendPgConstraintError(res, error, {
       food_id: [404, 'Food not found'],
-      measure_unit_id: [404, 'Measure unit not found'],
+      food_portion_id: [404, 'Food portion not found'],
       '': [400, 'Invalid reference'],
     })) {
       return;
