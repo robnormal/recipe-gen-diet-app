@@ -3,6 +3,7 @@ dist
 .env
 .DS_Store
 *.log
+logs/
 
 # Ignore USDA data import files
 usda_data/**/*.json

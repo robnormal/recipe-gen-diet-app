@@ -24,6 +24,8 @@ import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import { pool } from './db_connection';
 import OpenAI from 'openai';
+import fs from 'fs';
+import path from 'path';
 
 // Extend express-session types to include userId
 declare module 'express-session' {
@@ -142,6 +144,33 @@ async function requireIngredient(req: express.Request, res: express.Response, ne
     next();
   } catch (error) {
     sendGenericError(error, res);
+  }
+}
+
+// OpenAI logging function
+function logOpenAIRequest(request: unknown, response: unknown | null = null) {
+  try {
+    const logsDir = path.join(__dirname, '..', 'logs');
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+
+    const timestamp = new Date().toISOString();
+    const logFile = path.join(logsDir, `openai-${new Date().toISOString().split('T')[0]}.log`);
+
+    const logEntry: { timestamp: string; request: unknown; response?: unknown } = {
+      timestamp,
+      request
+    };
+
+    if (response !== null) {
+      logEntry.response = response;
+    }
+
+    const logLine = JSON.stringify(logEntry) + '\n';
+    fs.appendFileSync(logFile, logLine, 'utf8');
+  } catch (error) {
+    console.error('Failed to write OpenAI log:', error);
   }
 }
 
@@ -560,7 +589,10 @@ When generating a recipe:
 2. Use get_food_portions to understand available measurements for each food
 3. Return a structured recipe as described in the function schema
 
-Important: Only use foods that exist in the database. Always search for foods before including them in the recipe.`;
+Important: Only use foods that exist in the database. Always search for foods before including them in the recipe.
+
+The recipe must be in JSON format, following the given structure.
+`;
 
   const userPrompt = `Generate a recipe named "${name.trim()}" based on the following: ${prompt.trim()}`;
 
@@ -591,14 +623,31 @@ Important: Only use foods that exist in the database. Always search for foods be
     ];
 
     while (iteration < maxIterations) {
-      const response = await openai.chat.completions.create({
+      const requestParams = {
         model: 'gpt-4o', // structured outputs most reliably supported on "gpt-4o"
         messages,
         tools: toolsWithReturn,
         tool_choice: 'auto',
         temperature: 0.7,
         response_format: { type: "json_object" }
-      });
+      };
+
+      console.log('sending to open ai')
+      let response
+      try {
+        response = await openai.chat.completions.create(requestParams as Parameters<typeof openai.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
+        // Log both request and response together
+        logOpenAIRequest(requestParams, {
+          id: response.id,
+          model: response.model,
+          choices: response.choices,
+          usage: response.usage,
+          created: response.created
+        });
+      } catch (err) {
+        console.error(err)
+        throw err
+      }
 
       const message = response.choices[0].message;
       if (!message) {
@@ -617,33 +666,37 @@ Important: Only use foods that exist in the database. Always search for foods be
           try {
             const args = JSON.parse(toolCall.function.arguments);
 
-            if (functionName === 'search_foods') {
-              const query = args.query as string;
-              const categories = args.categories as number[] | undefined;
-              const words = query.trim().split(/\s+/);
-              const searchResult = await searchFoods(words, 20, 0, categories || null);
-              functionResult = {
-                results: searchResult.results,
-                total: searchResult.total
-              };
-            } else if (functionName === 'get_food_portions') {
-              const foodId = args.foodId as number;
-              if (isNaN(foodId)) {
-                functionResult = { error: 'Invalid food ID' };
-              } else {
-                const foodExists = await checkFoodExists(foodId);
-                if (!foodExists) {
-                  functionResult = { error: 'Food not found' };
+            switch (functionName) {
+              case 'search_foods': {
+                const query = args.query as string;
+                const categories = args.categories as number[] | undefined;
+                const words = query.trim().split(/\s+/);
+                const searchResult = await searchFoods(words, 20, 0, categories || null);
+                functionResult = {
+                  results: searchResult.results,
+                  total: searchResult.total
+                };
+                break;
+              } case 'get_food_portions': {
+                const foodId = args.foodId as number;
+                if (isNaN(foodId)) {
+                  functionResult = {error: 'Invalid food ID'};
                 } else {
-                  const portions = await getFoodPortions(foodId);
-                  functionResult = { portions };
+                  const foodExists = await checkFoodExists(foodId);
+                  if (!foodExists) {
+                    functionResult = {error: 'Food not found'};
+                  } else {
+                    const portions = await getFoodPortions(foodId);
+                    functionResult = {portions};
+                  }
                 }
-              }
-            } else if (functionName === 'return_recipe') {
-              // The LLM is returning the final structured recipe, handle this below.
-              functionResult = null;
-            } else {
-              functionResult = { error: 'Unknown function' };
+                break;
+              } case 'return_recipe':
+                // The LLM is returning the final structured recipe, handle this below.
+                functionResult = null;
+                break;
+              default:
+                functionResult = { error: 'Unknown function' };
             }
           } catch (error) {
             console.error('Error executing function:', error);
