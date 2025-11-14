@@ -311,3 +311,21 @@ export async function deleteIngredient(id: number) {
   const result = await query(`DELETE FROM ingredients WHERE id = $1 RETURNING id`, [id]);
   return result.rowCount !== 0;
 }
+
+// Calculate recipe calorie density
+export async function calculateRecipeCalorieDensity(recipe_id: number): Promise<number | null> {
+  const result = await query(
+    `SELECT
+       CASE
+         WHEN SUM(i.gram_weight) > 0 THEN
+           SUM(f.calorie_density * i.gram_weight) / SUM(i.gram_weight)
+         ELSE NULL
+       END as calorie_density
+     FROM ingredients i
+     JOIN foods f ON i.food_id = f.id
+     WHERE i.recipe_id = $1
+       AND f.calorie_density IS NOT NULL`,
+    [recipe_id]
+  );
+  return result.rows[0]?.calorie_density ?? null;
+}

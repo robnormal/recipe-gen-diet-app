@@ -16,7 +16,8 @@ import {
   getIngredientById,
   getIngredientsWithFoods,
   updateIngredient,
-  deleteIngredient
+  deleteIngredient,
+  calculateRecipeCalorieDensity
 } from './db';
 import express from 'express';
 import cors from 'cors';
@@ -323,7 +324,8 @@ app.get('/api/recipes/:id', requireAuth, asyncHandler(async (req, res) => {
   if (!recipe) {
     return sendError(res, 404, 'Recipe not found');
   }
-  res.json(recipe);
+  const calorie_density = await calculateRecipeCalorieDensity(recipe.id);
+  res.json({ ...recipe, calorie_density });
 }));
 
 app.post('/api/recipes', requireAuth, async (req, res) => {
