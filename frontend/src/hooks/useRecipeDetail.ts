@@ -10,13 +10,15 @@ const RECIPE_FORM_INITIAL_STATE: RecipeFormData = {
   total_time_minutes: '',
 };
 
+type View = 'list' | 'detail' | 'create' | 'generate';
+
 interface UseRecipeDetailOptions {
   onRecipeChange?: (recipe: Recipe) => void;
-  onBack?: () => void;
+  navigate?: (view: View, recipeId?: number | null) => void;
 }
 
 export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
-  const { onRecipeChange, onBack } = options;
+  const { onRecipeChange, navigate } = options;
 
   // Recipe detail state
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
@@ -65,6 +67,9 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
   };
 
   const handleRecipeClick = async (recipe: Recipe) => {
+    if (navigate) {
+      navigate('detail', recipe.id);
+    }
     setIsLoadingRecipe(true);
     setRecipeUpdateError(null);
     setRecipeUpdateSuccess(null);
@@ -221,9 +226,6 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
     setRecipeUpdateSuccess(null);
     setIngredientError(null);
     setRecipeFormData({ ...RECIPE_FORM_INITIAL_STATE });
-    if (onBack) {
-      onBack();
-    }
   };
 
   const resetRecipeFormData = () => {

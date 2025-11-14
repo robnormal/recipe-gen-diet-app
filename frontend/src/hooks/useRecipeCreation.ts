@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { Recipe } from '../types';
 import { createIngredient as apiCreateIngredient, fetchRecipeDetails as apiFetchRecipeDetails } from '../services/api';
 
+type View = 'list' | 'detail' | 'create' | 'generate';
+
 interface UseRecipeCreationOptions {
   onRecipeCreated?: (recipe: Recipe) => void;
   onRecipeGenerated?: (recipe: Recipe) => void;
+  navigate?: (view: View, recipeId?: number | null) => void;
 }
 
 export function useRecipeCreation(options: UseRecipeCreationOptions = {}) {
-  const { onRecipeCreated, onRecipeGenerated } = options;
+  const { onRecipeCreated, onRecipeGenerated, navigate } = options;
 
   // Recipe creation state
   const [showRecipeForm, setShowRecipeForm] = useState<boolean>(false);
@@ -19,6 +22,35 @@ export function useRecipeCreation(options: UseRecipeCreationOptions = {}) {
 
   // Recipe generation state
   const [showGenerateForm, setShowGenerateForm] = useState<boolean>(false);
+
+  // Wrapped setters that also update URL
+  const setShowRecipeFormWithNavigation = (show: boolean | ((prev: boolean) => boolean)) => {
+    const newValue = typeof show === 'function' ? show(showRecipeForm) : show;
+    // Only update if the value actually changes
+    if (newValue === showRecipeForm) return;
+    setShowRecipeForm(newValue);
+    if (navigate) {
+      if (newValue) {
+        navigate('create');
+      } else {
+        navigate('list');
+      }
+    }
+  };
+
+  const setShowGenerateFormWithNavigation = (show: boolean | ((prev: boolean) => boolean)) => {
+    const newValue = typeof show === 'function' ? show(showGenerateForm) : show;
+    // Only update if the value actually changes
+    if (newValue === showGenerateForm) return;
+    setShowGenerateForm(newValue);
+    if (navigate) {
+      if (newValue) {
+        navigate('generate');
+      } else {
+        navigate('list');
+      }
+    }
+  };
   const [generateRecipeName, setGenerateRecipeName] = useState<string>('');
   const [generatePrompt, setGeneratePrompt] = useState<string>('');
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState<boolean>(false);
@@ -51,7 +83,7 @@ export function useRecipeCreation(options: UseRecipeCreationOptions = {}) {
       const recipeData = await response.json();
       setRecipeSuccess(`Recipe "${recipeData.name}" created successfully!`);
       setRecipeName('');
-      setShowRecipeForm(false);
+      setShowRecipeFormWithNavigation(false);
       
       if (onRecipeCreated) {
         onRecipeCreated(recipeData);
@@ -151,7 +183,7 @@ export function useRecipeCreation(options: UseRecipeCreationOptions = {}) {
       // Step 4: Clear form
       setGenerateRecipeName('');
       setGeneratePrompt('');
-      setShowGenerateForm(false);
+      setShowGenerateFormWithNavigation(false);
 
       if (onRecipeGenerated) {
         onRecipeGenerated(createdRecipe);
@@ -167,7 +199,7 @@ export function useRecipeCreation(options: UseRecipeCreationOptions = {}) {
   return {
     createState: {
       showRecipeForm,
-      setShowRecipeForm,
+      setShowRecipeForm: setShowRecipeFormWithNavigation,
       recipeName,
       setRecipeName,
       isCreatingRecipe,
@@ -178,7 +210,7 @@ export function useRecipeCreation(options: UseRecipeCreationOptions = {}) {
     },
     generateState: {
       showGenerateForm,
-      setShowGenerateForm,
+      setShowGenerateForm: setShowGenerateFormWithNavigation,
       generateRecipeName,
       setGenerateRecipeName,
       generatePrompt,

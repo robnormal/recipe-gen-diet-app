@@ -11,8 +11,13 @@ import { useRecipeCreation } from './hooks/useRecipeCreation';
 import { useFoodSearch } from './hooks/useFoodSearch';
 import { useIngredientForm } from './hooks/useIngredientForm';
 import { useRecipeDetail } from './hooks/useRecipeDetail';
+import { useNavigation } from './hooks/useNavigation';
 
 function App() {
+  // Navigation
+  const navigation = useNavigation();
+  const { view, recipeId, navigate } = navigation;
+
   // Authentication
   const auth = useAuth();
   const { user, isCheckingAuth, loginState, registrationState, login, logout, register } = auth;
@@ -25,11 +30,14 @@ function App() {
   const recipeCreation = useRecipeCreation({
     onRecipeCreated: () => {
       refreshRecipes();
+      navigate('list');
     },
     onRecipeGenerated: (recipe) => {
       refreshRecipes();
+      navigate('detail', recipe.id);
       recipeDetail.handlers.onRecipeClick(recipe);
     },
+    navigate,
   });
   const { createState, generateState, handlers: creationHandlers } = recipeCreation;
 
@@ -42,12 +50,7 @@ function App() {
     onRecipeChange: () => {
       refreshRecipes();
     },
-    onBack: () => {
-      recipeDetail.handlers.onBack();
-      foodSearch.clearSearchResults();
-      ingredientForm.resetFunctions.resetNewIngredientForm();
-      ingredientForm.resetFunctions.resetEditIngredientState();
-    },
+    navigate,
   });
   const {
     recipeDetailState,
@@ -84,6 +87,40 @@ function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Sync navigation view with component state
+  useEffect(() => {
+    if (!user) return;
+
+    // Handle navigation to detail view
+    if (view === 'detail' && recipeId !== null) {
+      const recipe = recipes.find(r => r.id === recipeId);
+      if (recipe && recipeDetailState.selectedRecipe?.id !== recipeId) {
+        recipeDetail.handlers.onRecipeClick(recipe);
+      }
+    } else if (view === 'list' && recipeDetailState.selectedRecipe !== null) {
+      // Clear recipe detail state when navigating back to list
+      recipeDetail.handlers.onBack();
+      foodSearch.clearSearchResults();
+      ingredientForm.resetFunctions.resetNewIngredientForm();
+      ingredientForm.resetFunctions.resetEditIngredientState();
+    }
+
+    // Handle navigation to create/generate forms
+    if (view === 'create' && !createState.showRecipeForm) {
+      createState.setShowRecipeForm(true);
+    } else if (view === 'generate' && !generateState.showGenerateForm) {
+      generateState.setShowGenerateForm(true);
+    } else if (view === 'list') {
+      if (createState.showRecipeForm) {
+        createState.setShowRecipeForm(false);
+      }
+      if (generateState.showGenerateForm) {
+        generateState.setShowGenerateForm(false);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, recipeId, user]);
 
   // Show loading state while checking authentication
   if (isCheckingAuth) {
@@ -123,7 +160,7 @@ function App() {
     <div className="App">
       <AppHeader user={user} onLogout={logout} />
 
-      {recipeDetailState.selectedRecipe ? (
+      {view === 'detail' && recipeDetailState.selectedRecipe ? (
         <RecipeDetailView
           state={{
             selectedRecipe: recipeDetailState.selectedRecipe,
@@ -162,7 +199,7 @@ function App() {
             selectedCategories: categoryState.selectedCategories,
           }}
           actions={{
-            onBack: detailHandlers.onBack,
+            onBack: () => navigate('list'),
             onUpdateRecipe: detailHandlers.onUpdateRecipe,
             onIngredientSearch: search,
             onSelectFoodForIngredient: ingredientHandlers.onSelectFoodForIngredient,
@@ -188,6 +225,7 @@ function App() {
       ) : (
         <>
           <RecipeCreationForms
+            navigate={navigate}
             showRecipeForm={createState.showRecipeForm}
             setShowRecipeForm={createState.setShowRecipeForm}
             showGenerateForm={generateState.showGenerateForm}
