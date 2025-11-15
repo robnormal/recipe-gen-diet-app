@@ -184,14 +184,14 @@ export async function generateRecipeWithLLM(name: string, prompt: string, openai
   const systemPrompt = `You are a recipe generation assistant. Your task is to help create a recipe based on the user's prompt.
 
 When generating a recipe:
-1. Search for foods using the search_foods function to find ingredients in the database
-2. Use get_food_portions to understand available measurements for each food
-3. Return a structured recipe as described in the function schema
+1. Use search_foods to find ingredients
+2. Use get_food_portions to find available measurements for each ingredient
+3. Return a JSON-structured recipe as described in the function schema
 
 Important guidelines:
-- Only use foods that exist in the database. Always search for foods before including them in the recipe.
-- BATCH YOUR TOOL CALLS: When you need to search for multiple ingredients, call search_foods multiple times in a SINGLE response (not one at a time). Similarly, when you need portions for multiple foods, call get_food_portions multiple times in one response.
-- Example: If a recipe needs chicken, rice, and broccoli, make 3 search_foods calls in your single response, not one call followed by waiting for results.
+- Only use ingredients returned by search_foods.
+- BATCH YOUR TOOL CALLS: To search for multiple ingredients, call search_foods multiple times in a SINGLE response (not one at a time).
+  When you need portions for multiple foods, call get_food_portions multiple times in one response.
 - The recipe must be in JSON format, following the given structure.
 `;
 
@@ -260,7 +260,7 @@ Important guidelines:
     type: 'function',
     function: {
       name: 'return_recipe',
-      description: 'Return the final recipe response for the user. Use this as the last step. Do not call this function unless you have collected and validated all information needed for the recipe.',
+      description: 'Return the final recipe response. Use this as the last step.',
       parameters: recipeStructuredResponse
     }
   };
