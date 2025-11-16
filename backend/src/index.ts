@@ -3,7 +3,6 @@ import {
   listFoodCategories,
   checkFoodExists,
   getFoodPortions,
-  getFoodById,
   createUser,
   authenticateUser,
   getUserById,
