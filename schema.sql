@@ -52,7 +52,7 @@ CREATE TABLE measure_units (
 CREATE TABLE food_portions (
     id INTEGER PRIMARY KEY,
     food_id INTEGER NOT NULL,
-    measure_unit_id INTEGER NOT NULL,
+    measure_unit_id INTEGER,
     amount REAL NOT NULL,
     modifier VARCHAR(100),
     gram_weight REAL NOT NULL,
