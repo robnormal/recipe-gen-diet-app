@@ -16,3 +16,5 @@ usda_data/**/*.xlsx
 
 # Intellij settings files
 .idea
+.vscode
+.cursor
