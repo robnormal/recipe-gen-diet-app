@@ -319,7 +319,7 @@ export async function calculateRecipeCalorieDensity(recipe_id: number): Promise<
        CASE
          WHEN SUM(i.gram_weight) > 0 THEN
            SUM(f.calorie_density * i.gram_weight) / SUM(i.gram_weight)
-         ELSE NULL
+         ELSE 0
        END as calorie_density
      FROM ingredients i
      JOIN foods f ON i.food_id = f.id

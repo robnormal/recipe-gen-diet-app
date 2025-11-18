@@ -4,8 +4,6 @@ import { CALORIE_NUTRIENT_NUMBERS } from './db'
 import fs from 'fs';
 import path from 'path';
 
-dotenv.config();
-
 interface NutrientData {
   id: number;
   number: string;
@@ -376,6 +374,22 @@ function parseFoods(fileContent: string) {
 }
 
 /**
+ * Change the entry for tap water to have just Water as the description
+ */
+async function addWaterFood(): Promise<boolean> {
+  const tapWaterDescription = 'Beverages, water, tap, drinking';
+  const waterDescription = 'Water';
+
+  const waterFood = await pool.query('SELECT id FROM foods WHERE description = $1', [tapWaterDescription]);
+  if (waterFood.rows.length > 0) {
+    await pool.query('UPDATE foods SET description = $1 WHERE id = $2', [waterDescription, waterFood.rows[0].id]);
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Main import function
  */
 async function importFoods(jsonFilePath: string): Promise<void> {
@@ -397,6 +411,10 @@ async function importFoods(jsonFilePath: string): Promise<void> {
     }
 
     console.log(`\n✓ Successfully imported ${foods.length} food item(s)`);
+
+    // Add water as a food item after import
+    console.log('\nAdding water as a food item...');
+    await addWaterFood();
   } catch (error) {
     console.error('Import failed:', error);
     process.exit(1);
@@ -423,4 +441,4 @@ if (require.main === module) {
     });
 }
 
-export { importFoods };
+export { importFoods, addWaterFood };
