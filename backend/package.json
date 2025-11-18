@@ -6,7 +6,7 @@
     "dev": "tsx watch --env-file=.env src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "jest",
+    "test": "node --env-file=.env ../node_modules/.bin/jest",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
     "import-foods": "tsx --env-file=.env src/import-foods.ts"
