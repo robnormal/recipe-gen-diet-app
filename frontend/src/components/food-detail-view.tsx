@@ -258,16 +258,28 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
                 <th>Nutrient</th>
                 <th>Amount</th>
                 <th>Unit</th>
+                <th>Per Calorie</th>
               </tr>
             </thead>
             <tbody>
               {food.nutrients.map((nutrient) => {
                 const scaledAmount = (nutrient.amount * amount) / 100;
+                const totalCalories = food.calorie_density !== null && food.calorie_density !== undefined
+                  ? food.calorie_density * amount
+                  : null;
+                const perCalorie = totalCalories !== null && totalCalories > 0
+                  ? scaledAmount / totalCalories
+                  : null;
                 return (
                   <tr key={nutrient.id}>
                     <td>{nutrient.name}</td>
                     <td>{scaledAmount.toFixed(2)}</td>
                     <td>{nutrient.unit || 'N/A'}</td>
+                    <td>
+                      {perCalorie !== null
+                        ? `${perCalorie.toFixed(4)} ${nutrient.unit || ''}`
+                        : 'N/A'}
+                    </td>
                   </tr>
                 );
               })}
