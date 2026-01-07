@@ -90,18 +90,25 @@ p {
 }
 
 .food-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 0.35rem 0.5rem;
   margin-bottom: 0.25rem;
   background-color: #f8f9fa;
   border: 1px solid #e9ecef;
   border-radius: 2px;
-  cursor: pointer;
   transition: background-color 0.2s, border-color 0.2s;
 }
 
 .food-item:hover {
   background-color: #e9ecef;
   border-color: #3498db;
+}
+
+.food-item .food-details {
+  flex: 1;
+  cursor: pointer;
 }
 
 .food-description {
@@ -125,6 +132,22 @@ p {
   padding: 0.15rem 0.5rem;
   background-color: #ecf0f1;
   border-radius: 12px;
+}
+
+.view-food-button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.view-food-button:hover {
+  background-color: #2980b9;
 }
 
 .no-results {

@@ -5,18 +5,20 @@ import { AuthView } from './components/auth-view';
 import { RecipeCreationForms } from './components/recipe-creation-forms';
 import { RecipeList } from './components/recipe-list';
 import { RecipeDetailView } from './components/recipe-detail-view';
+import { FoodDetailView } from './components/food-detail-view';
 import { useAuth } from './hooks/useAuth';
 import { useRecipesList } from './hooks/useRecipesList';
 import { useRecipeCreation } from './hooks/useRecipeCreation';
 import { useFoodSearch } from './hooks/useFoodSearch';
 import { useIngredientForm } from './hooks/useIngredientForm';
 import { useRecipeDetail } from './hooks/useRecipeDetail';
+import { useFoodDetail } from './hooks/useFoodDetail';
 import { useNavigation } from './hooks/useNavigation';
 
 function App() {
   // Navigation
   const navigation = useNavigation();
-  const { view, recipeId, navigate } = navigation;
+  const { view, recipeId, foodId, navigate } = navigation;
 
   // Authentication
   const auth = useAuth();
@@ -77,6 +79,10 @@ function App() {
   });
   const { newIngredientState, editIngredientState, handlers: ingredientHandlers, resetFunctions } = ingredientForm;
 
+  // Food detail
+  const foodDetail = useFoodDetail({ navigate });
+  const { foodDetailState, handlers: foodDetailHandlers } = foodDetail;
+
   // Fetch categories and recipes when user is authenticated
   useEffect(() => {
     if (user) {
@@ -97,6 +103,11 @@ function App() {
       const recipe = recipes.find(r => r.id === recipeId);
       if (recipe && recipeDetailState.selectedRecipe?.id !== recipeId) {
         recipeDetail.handlers.onRecipeClick(recipe);
+      }
+    } else if (view === 'food' && foodId !== null) {
+      // Handle navigation to food detail view
+      if (foodDetailState.selectedFood?.id !== foodId) {
+        foodDetailHandlers.onFoodClick(foodId);
       }
     } else if (view === 'list' && recipeDetailState.selectedRecipe !== null) {
       // Clear recipe detail state when navigating back to list
@@ -120,7 +131,7 @@ function App() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, recipeId, user]);
+  }, [view, recipeId, foodId, user]);
 
   // Show loading state while checking authentication
   if (isCheckingAuth) {
@@ -160,7 +171,14 @@ function App() {
     <div className="App">
       <AppHeader user={user} onLogout={logout} />
 
-      {view === 'detail' && recipeDetailState.selectedRecipe ? (
+      {view === 'food' ? (
+        <FoodDetailView
+          food={foodDetailState.selectedFood}
+          isLoading={foodDetailState.isLoadingFood}
+          error={foodDetailState.foodError}
+          onBack={foodDetailHandlers.onBack}
+        />
+      ) : view === 'detail' && recipeDetailState.selectedRecipe ? (
         <RecipeDetailView
           state={{
             selectedRecipe: recipeDetailState.selectedRecipe,
@@ -203,6 +221,7 @@ function App() {
             onUpdateRecipe: detailHandlers.onUpdateRecipe,
             onIngredientSearch: search,
             onSelectFoodForIngredient: ingredientHandlers.onSelectFoodForIngredient,
+            onViewFoodDetails: (foodId: number) => navigate('food', foodId),
             onAddIngredient: ingredientHandlers.onAddIngredient,
             onStartEditIngredient: ingredientHandlers.onStartEditIngredient,
             onCancelEditIngredient: ingredientHandlers.onCancelEditIngredient,

@@ -52,6 +52,7 @@ interface RecipeDetailActions {
   onUpdateRecipe: (e: React.FormEvent<HTMLFormElement>) => void;
   onIngredientSearch: (e: React.FormEvent<HTMLFormElement>) => void;
   onSelectFoodForIngredient: (food: FoodResult) => void;
+  onViewFoodDetails?: (foodId: number) => void;
   onAddIngredient: (e: React.FormEvent<HTMLFormElement>) => void;
   onStartEditIngredient: (ingredient: IngredientWithFood) => void;
   onCancelEditIngredient: () => void;
@@ -124,6 +125,7 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
     onUpdateRecipe,
     onIngredientSearch,
     onSelectFoodForIngredient,
+    onViewFoodDetails,
     onAddIngredient,
     onStartEditIngredient,
     onCancelEditIngredient,
@@ -390,11 +392,25 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
                     <div className="ingredient-search-results">
                       <ul className="food-results">
                         {ingredientSearchResults.map((food, index) => (
-                          <li key={index} className="food-item" onClick={() => onSelectFoodForIngredient(food)}>
-                            <div className="food-details">
+                          <li key={index} className="food-item">
+                            <div className="food-details" onClick={() => onSelectFoodForIngredient(food)}>
                               <span className="food-description">{food.description}</span>
                               <span className="calorie-density">{food.calorie_density?.toFixed(1) || 'N/A'}</span>
                             </div>
+                            {onViewFoodDetails && (
+                              <a
+                                href={`/foods/${food.id}`}
+                                className="view-food-button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  onViewFoodDetails(food.id);
+                                }}
+                                title="View food details"
+                              >
+                                View
+                              </a>
+                            )}
                           </li>
                         ))}
                       </ul>

@@ -3,6 +3,7 @@ import {
   listFoodCategories,
   checkFoodExists,
   getFoodPortions,
+  getFoodDetailsWithNutrients,
   createUser,
   authenticateUser,
   getUserById,
@@ -243,6 +244,22 @@ app.get('/api/foods/search', requireAuth, asyncHandler(async (req, res) => {
   const { results, total } = await searchFoods(words, limit, offset, categoryIds);
 
   res.json({ results, pagination: { total, limit, offset } });
+}));
+
+app.get('/api/foods/:foodId', requireAuth, asyncHandler(async (req, res) => {
+  const { foodId } = req.params;
+  const foodIdNum = parseInt(foodId);
+
+  if (isNaN(foodIdNum)) {
+    return sendError(res, 400, 'Invalid food ID');
+  }
+
+  const foodDetails = await getFoodDetailsWithNutrients(foodIdNum);
+  if (!foodDetails) {
+    return sendError(res, 404, 'Food not found');
+  }
+
+  res.json(foodDetails);
 }));
 
 app.get('/api/foods/:foodId/portions', requireAuth, asyncHandler(async (req, res) => {

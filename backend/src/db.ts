@@ -91,6 +91,50 @@ export async function getFoodById(id: number) {
   return result.rowCount === 0 ? null : result.rows[0];
 }
 
+export async function getFoodDetailsWithNutrients(id: number) {
+  // Get food basic info
+  const foodResult = await query(
+    `SELECT id, description, calorie_density
+     FROM foods
+     WHERE id = $1`,
+    [id]
+  );
+  
+  if (foodResult.rowCount === 0) {
+    return null;
+  }
+
+  const food = foodResult.rows[0];
+
+  // Get all nutrients for this food
+  const nutrientsResult = await query(
+    `SELECT 
+       n.id,
+       n.name,
+       n.unit_name,
+       n.rank,
+       fn.amount
+     FROM food_nutrients fn
+     JOIN nutrients n ON fn.nutrient_id = n.id
+     WHERE fn.food_id = $1
+     ORDER BY COALESCE(n.rank, 999999), n.name`,
+    [id]
+  );
+
+  return {
+    id: food.id,
+    description: food.description,
+    calorie_density: food.calorie_density,
+    nutrients: nutrientsResult.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      unit: row.unit_name,
+      amount: row.amount,
+      rank: row.rank,
+    })),
+  };
+}
+
 // User functions
 export async function createUser(
   email: string,

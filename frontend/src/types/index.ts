@@ -102,3 +102,17 @@ export interface IngredientFormState {
 
 export type MeasurementType = 'grams' | 'portion' | null;
 
+export interface FoodNutrient {
+  id: number;
+  name: string;
+  unit: string | null;
+  amount: number;
+  rank: number | null;
+}
+
+export interface FoodDetail {
+  id: number;
+  description: string;
+  calorie_density: number | null;
+  nutrients: FoodNutrient[];
+}

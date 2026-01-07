@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Recipe, RecipeFormData, IngredientWithFood } from '../types';
 import { fetchRecipeDetails as apiFetchRecipeDetails, updateRecipeDetails as apiUpdateRecipeDetails, fetchIngredients as apiFetchIngredients, deleteIngredient as apiDeleteIngredient, ApiError } from '../services/api';
+import { View } from './useNavigation';
 
 const RECIPE_FORM_INITIAL_STATE: RecipeFormData = {
   name: '',
@@ -10,11 +11,9 @@ const RECIPE_FORM_INITIAL_STATE: RecipeFormData = {
   total_time_minutes: '',
 };
 
-type View = 'list' | 'detail' | 'create' | 'generate';
-
 interface UseRecipeDetailOptions {
   onRecipeChange?: (recipe: Recipe) => void;
-  navigate?: (view: View, recipeId?: number | null) => void;
+  navigate?: (view: View, id?: number | null) => void;
 }
 
 export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {

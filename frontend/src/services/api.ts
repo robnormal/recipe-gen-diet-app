@@ -1,5 +1,6 @@
 import {
   FoodCategory,
+  FoodDetail,
   FoodPortion,
   Ingredient,
   IngredientWithFood,
@@ -107,6 +108,14 @@ export async function fetchIngredients(recipeId: number): Promise<IngredientWith
 
   const data = await handleResponse<{ ingredients: IngredientWithFood[] }>(response);
   return data.ingredients;
+}
+
+export async function fetchFoodDetails(foodId: number): Promise<FoodDetail> {
+  const response = await fetch(`/api/foods/${foodId}`, {
+    credentials: 'include',
+  });
+
+  return handleResponse<FoodDetail>(response);
 }
 
 export async function fetchFoodPortions(foodId: number): Promise<FoodPortion[]> {
