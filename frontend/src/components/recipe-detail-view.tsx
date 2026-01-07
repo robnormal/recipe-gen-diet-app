@@ -190,7 +190,22 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
                 <tbody>
                   {ingredients.map((ingredient) => (
                     <tr key={ingredient.id} className={editingIngredientId === ingredient.id ? 'editing-row' : ''}>
-                      <td>{ingredient.food_description}</td>
+                      <td>
+                        {onViewFoodDetails ? (
+                          <a
+                            href={`/foods/${ingredient.food_id}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              onViewFoodDetails(ingredient.food_id);
+                            }}
+                            className="food-name-link"
+                          >
+                            {ingredient.food_description}
+                          </a>
+                        ) : (
+                          ingredient.food_description
+                        )}
+                      </td>
                       <td>
                         {editingIngredientId === ingredient.id ? (
                           <input

@@ -715,6 +715,17 @@ p {
   color: #2980b9;
 }
 
+.food-name-link {
+  color: #3498db;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.food-name-link:hover {
+  color: #2980b9;
+  text-decoration: underline;
+}
+
 .recipe-description {
   margin-top: 0.5rem;
   margin-bottom: 0.75rem;
