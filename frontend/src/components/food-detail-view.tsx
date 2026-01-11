@@ -257,7 +257,6 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
               <tr>
                 <th>Nutrient</th>
                 <th>Amount</th>
-                <th>Unit</th>
                 <th>Per Calorie</th>
               </tr>
             </thead>
@@ -270,14 +269,14 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
                 const perCalorie = totalCalories !== null && totalCalories > 0
                   ? scaledAmount / totalCalories
                   : null;
+                const unit = nutrient.unit || '';
                 return (
                   <tr key={nutrient.id}>
                     <td>{nutrient.name}</td>
-                    <td>{scaledAmount.toFixed(2)}</td>
-                    <td>{nutrient.unit || 'N/A'}</td>
+                    <td>{scaledAmount.toFixed(2)}{unit ? ` ${unit}` : ''}</td>
                     <td>
                       {perCalorie !== null
-                        ? `${perCalorie.toFixed(4)} ${nutrient.unit || ''}`
+                        ? `${perCalorie.toFixed(4)}${unit ? ` ${unit}` : ''}`
                         : 'N/A'}
                     </td>
                   </tr>
