@@ -4,6 +4,9 @@ import bcrypt from 'bcryptjs';
 // nutrient.number for calories (there's more than one possibility)
 export const CALORIE_NUTRIENT_NUMBERS = ['208'];
 
+// Ordered list of nutrient numbers to display in food details
+export const DISPLAY_NUTRIENT_NUMBERS = ['208','203','205','291','204','601','320','401','328','323','430','417','406','415','418','301','303','304','306','307','309','305','317','312','315','851','629','621','631','852'];
+
 // Food search functions
 export async function searchFoods(words: string[], limit: number, offset: number, categoryIds: number[] | null = null) {
   return withClient(async client => {
@@ -106,19 +109,21 @@ export async function getFoodDetailsWithNutrients(id: number) {
 
   const food = foodResult.rows[0];
 
-  // Get all nutrients for this food
+  // Get all nutrients for this food, filtered and ordered by the display list
   const nutrientsResult = await query(
     `SELECT 
        n.id,
        n.name,
        n.unit_name,
        n.rank,
+       n.number,
        fn.amount
      FROM food_nutrients fn
      JOIN nutrients n ON fn.nutrient_id = n.id
      WHERE fn.food_id = $1
-     ORDER BY COALESCE(n.rank, 999999), n.name`,
-    [id]
+       AND n.number = ANY($2::varchar[])
+     ORDER BY array_position($2::varchar[], n.number)`,
+    [id, DISPLAY_NUTRIENT_NUMBERS]
   );
 
   return {
