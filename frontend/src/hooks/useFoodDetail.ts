@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { FoodDetail, View } from '../types';
+import { FoodDetail } from '../types';
+import { View } from './useNavigation';
 import { fetchFoodDetails as apiFetchFoodDetails, ApiError } from '../services/api';
 
 interface UseFoodDetailOptions {
