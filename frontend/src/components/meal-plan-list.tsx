@@ -91,6 +91,7 @@ export function MealPlanList({
           )}
         </div>
       )}
+      <hr />
       {isLoadingMealPlans ? (
         <p className="loading-message">Loading meal plans...</p>
       ) : mealPlansError ? (
@@ -101,9 +102,16 @@ export function MealPlanList({
         <ul className="meal-plans-list">
           {mealPlans.map((mealPlan) => (
             <li key={mealPlan.id} className="meal-plan-item">
-              <button onClick={() => onMealPlanClick(mealPlan)} className="meal-plan-name-link" type="button">
+              <a 
+                href={`/meal-plans/${mealPlan.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onMealPlanClick(mealPlan);
+                }}
+                className="meal-plan-name-link"
+              >
                 {mealPlan.name}
-              </button>
+              </a>
               {mealPlan.description && <div className="meal-plan-description">{mealPlan.description}</div>}
               <div className="meal-plan-meta">
                 <span className="meal-plan-date">Created: {new Date(mealPlan.created_at).toLocaleDateString()}</span>
