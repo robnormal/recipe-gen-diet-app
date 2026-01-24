@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { MealPlanWithRecipes, Recipe } from '../types';
+import { useState, useEffect } from 'react';
+import { MealPlanWithRecipes, Recipe, IngredientWithFood } from '../types';
+import { fetchIngredients } from '../services/api';
 
 interface MealPlanDetailViewProps {
   mealPlan: MealPlanWithRecipes | null;
@@ -50,8 +51,34 @@ export function MealPlanDetailView({
 }: MealPlanDetailViewProps) {
   const [editingRecipeId, setEditingRecipeId] = useState<number | null>(null);
   const [editingQuantity, setEditingQuantity] = useState<string>('');
+  const [editingInputMode, setEditingInputMode] = useState<'quantity' | 'grams'>('quantity');
   const [newRecipeId, setNewRecipeId] = useState<string>('');
   const [newRecipeQuantity, setNewRecipeQuantity] = useState<string>('1.0');
+  const [newRecipeInputMode, setNewRecipeInputMode] = useState<'quantity' | 'grams'>('quantity');
+  const [selectedRecipeWeight, setSelectedRecipeWeight] = useState<number | null>(null);
+  const [isLoadingRecipeWeight, setIsLoadingRecipeWeight] = useState<boolean>(false);
+
+  // Fetch recipe weight when a recipe is selected and grams mode is active
+  useEffect(() => {
+    if (newRecipeId && newRecipeInputMode === 'grams' && !selectedRecipeWeight) {
+      const recipeId = parseInt(newRecipeId);
+      if (!isNaN(recipeId)) {
+        setIsLoadingRecipeWeight(true);
+        fetchIngredients(recipeId)
+          .then((ingredients: IngredientWithFood[]) => {
+            const totalWeight = ingredients.reduce((sum, ing) => sum + ing.gram_weight, 0);
+            setSelectedRecipeWeight(totalWeight);
+            setIsLoadingRecipeWeight(false);
+          })
+          .catch(() => {
+            setIsLoadingRecipeWeight(false);
+            setSelectedRecipeWeight(0);
+          });
+      }
+    } else if (!newRecipeId) {
+      setSelectedRecipeWeight(null);
+    }
+  }, [newRecipeId, newRecipeInputMode, selectedRecipeWeight]);
 
   if (!mealPlan && !isLoadingMealPlan) {
     return null;
@@ -59,34 +86,80 @@ export function MealPlanDetailView({
 
   const handleStartEditRecipe = (recipeId: number, currentQuantity: number) => {
     setEditingRecipeId(recipeId);
+    setEditingInputMode('quantity');
     setEditingQuantity(currentQuantity.toString());
   };
 
   const handleCancelEditRecipe = () => {
     setEditingRecipeId(null);
     setEditingQuantity('');
+    setEditingInputMode('quantity');
   };
 
-  const handleSaveRecipeQuantity = (recipeId: number) => {
-    const quantity = parseFloat(editingQuantity);
-    if (!isNaN(quantity) && quantity > 0) {
-      onUpdateRecipeQuantity(recipeId, quantity);
-      setEditingRecipeId(null);
-      setEditingQuantity('');
+  const handleSaveRecipeQuantity = (recipeId: number, recipeTotalWeight: number) => {
+    let quantity: number;
+    
+    if (editingInputMode === 'grams') {
+      const grams = parseFloat(editingQuantity);
+      if (isNaN(grams) || grams <= 0) {
+        return;
+      }
+      if (recipeTotalWeight <= 0) {
+        return; // Cannot convert grams to quantity if recipe has no weight
+      }
+      quantity = grams / recipeTotalWeight;
+    } else {
+      quantity = parseFloat(editingQuantity);
+      if (isNaN(quantity) || quantity <= 0) {
+        return;
+      }
     }
+    
+    onUpdateRecipeQuantity(recipeId, quantity);
+    setEditingRecipeId(null);
+    setEditingQuantity('');
+    setEditingInputMode('quantity');
   };
 
   const handleAddNewRecipe = () => {
     const recipeId = parseInt(newRecipeId);
-    const quantity = parseFloat(newRecipeQuantity);
-    if (!isNaN(recipeId) && !isNaN(quantity) && quantity > 0) {
-      const recipe = availableRecipes.find((r) => r.id === recipeId);
-      if (recipe) {
-        onAddRecipe(recipe, quantity);
-        setNewRecipeId('');
-        setNewRecipeQuantity('1.0');
+    if (isNaN(recipeId)) {
+      return;
+    }
+    
+    const recipe = availableRecipes.find((r) => r.id === recipeId);
+    if (!recipe) {
+      return;
+    }
+    
+    // Get the recipe's total weight
+    const existingMealPlanRecipe = mealPlan?.recipes.find((r) => r.recipe_id === recipeId);
+    const recipeTotalWeight = existingMealPlanRecipe?.recipe_total_weight || selectedRecipeWeight || 0;
+    
+    let quantity: number;
+    
+    if (newRecipeInputMode === 'grams') {
+      const grams = parseFloat(newRecipeQuantity);
+      if (isNaN(grams) || grams <= 0) {
+        return;
+      }
+      if (recipeTotalWeight <= 0) {
+        alert('Recipe weight not available. Please use quantity mode or wait for recipe weight to load.');
+        return;
+      }
+      quantity = grams / recipeTotalWeight;
+    } else {
+      quantity = parseFloat(newRecipeQuantity);
+      if (isNaN(quantity) || quantity <= 0) {
+        return;
       }
     }
+    
+    onAddRecipe(recipe, quantity);
+    setNewRecipeId('');
+    setNewRecipeQuantity('1.0');
+    setNewRecipeInputMode('quantity');
+    setSelectedRecipeWeight(null);
   };
 
   return (
@@ -174,16 +247,48 @@ export function MealPlanDetailView({
                         <td>
                           {editingRecipeId === mealPlanRecipe.recipe_id ? (
                             <div className="inline-edit">
+                              <select
+                                value={editingInputMode}
+                                onChange={(e) => {
+                                  const mode = e.target.value as 'quantity' | 'grams';
+                                  const currentValue = parseFloat(editingQuantity);
+                                  
+                                  if (!isNaN(currentValue) && currentValue > 0) {
+                                    if (editingInputMode === 'quantity' && mode === 'grams') {
+                                      // Convert quantity to grams
+                                      const grams = currentValue * mealPlanRecipe.recipe_total_weight;
+                                      setEditingQuantity(grams.toFixed(1));
+                                    } else if (editingInputMode === 'grams' && mode === 'quantity') {
+                                      // Convert grams to quantity
+                                      if (mealPlanRecipe.recipe_total_weight > 0) {
+                                        const quantity = currentValue / mealPlanRecipe.recipe_total_weight;
+                                        setEditingQuantity(quantity.toFixed(2));
+                                      }
+                                    }
+                                  }
+                                  setEditingInputMode(mode);
+                                }}
+                                className="form-input inline-input"
+                                style={{ marginRight: '8px', width: 'auto' }}
+                              >
+                                <option value="quantity">Quantity</option>
+                                <option value="grams">Grams</option>
+                              </select>
                               <input
                                 type="number"
-                                step="0.1"
+                                step={editingInputMode === 'grams' ? '1' : '0.1'}
                                 min="0.1"
                                 value={editingQuantity}
                                 onChange={(e) => setEditingQuantity(e.target.value)}
                                 className="form-input inline-input"
+                                placeholder={editingInputMode === 'grams' ? 'Grams' : 'Quantity'}
+                                style={{ width: '100px' }}
                               />
+                              <span style={{ marginLeft: '4px', marginRight: '8px' }}>
+                                {editingInputMode === 'grams' ? 'g' : 'x'}
+                              </span>
                               <button
-                                onClick={() => handleSaveRecipeQuantity(mealPlanRecipe.recipe_id)}
+                                onClick={() => handleSaveRecipeQuantity(mealPlanRecipe.recipe_id, mealPlanRecipe.recipe_total_weight)}
                                 disabled={isUpdatingRecipe || !editingQuantity || parseFloat(editingQuantity) <= 0}
                                 className="save-button"
                                 type="button"
@@ -239,7 +344,15 @@ export function MealPlanDetailView({
                 <div className="add-recipe-form">
                   <select
                     value={newRecipeId}
-                    onChange={(e) => setNewRecipeId(e.target.value)}
+                    onChange={(e) => {
+                      setNewRecipeId(e.target.value);
+                      setSelectedRecipeWeight(null);
+                      if (newRecipeInputMode === 'grams') {
+                        setNewRecipeQuantity('0');
+                      } else {
+                        setNewRecipeQuantity('1.0');
+                      }
+                    }}
                     className="form-input"
                   >
                     <option value="">Select a recipe...</option>
@@ -249,18 +362,81 @@ export function MealPlanDetailView({
                       </option>
                     ))}
                   </select>
+                  <select
+                    value={newRecipeInputMode}
+                    onChange={(e) => {
+                      const mode = e.target.value as 'quantity' | 'grams';
+                      const currentValue = parseFloat(newRecipeQuantity);
+                      
+                      // Get recipe weight if available
+                      const recipeId = newRecipeId ? parseInt(newRecipeId) : null;
+                      const existingMealPlanRecipe = recipeId ? mealPlan?.recipes.find((r) => r.recipe_id === recipeId) : null;
+                      const recipeTotalWeight = existingMealPlanRecipe?.recipe_total_weight || selectedRecipeWeight || 0;
+                      
+                      if (!isNaN(currentValue) && currentValue > 0) {
+                        if (newRecipeInputMode === 'quantity' && mode === 'grams') {
+                          // Convert quantity to grams
+                          if (recipeTotalWeight > 0) {
+                            const grams = currentValue * recipeTotalWeight;
+                            setNewRecipeQuantity(grams.toFixed(1));
+                          } else {
+                            // Weight not available, reset to 0
+                            setNewRecipeQuantity('0');
+                          }
+                        } else if (newRecipeInputMode === 'grams' && mode === 'quantity') {
+                          // Convert grams to quantity
+                          if (recipeTotalWeight > 0) {
+                            const quantity = currentValue / recipeTotalWeight;
+                            setNewRecipeQuantity(quantity.toFixed(2));
+                          } else {
+                            // Weight not available, reset to 1.0
+                            setNewRecipeQuantity('1.0');
+                          }
+                        }
+                      } else {
+                        // No valid value, set defaults
+                        if (mode === 'grams') {
+                          setNewRecipeQuantity('0');
+                        } else {
+                          setNewRecipeQuantity('1.0');
+                        }
+                      }
+                      setNewRecipeInputMode(mode);
+                    }}
+                    className="form-input"
+                    style={{ width: 'auto' }}
+                  >
+                    <option value="quantity">Quantity</option>
+                    <option value="grams">Grams</option>
+                  </select>
                   <input
                     type="number"
-                    step="0.1"
+                    step={newRecipeInputMode === 'grams' ? '1' : '0.1'}
                     min="0.1"
                     value={newRecipeQuantity}
                     onChange={(e) => setNewRecipeQuantity(e.target.value)}
                     className="form-input"
-                    placeholder="Quantity"
+                    placeholder={newRecipeInputMode === 'grams' ? 'Grams' : 'Quantity'}
+                    disabled={newRecipeInputMode === 'grams' && isLoadingRecipeWeight}
                   />
+                  {newRecipeInputMode === 'grams' && (
+                    <span style={{ marginLeft: '4px', marginRight: '8px' }}>g</span>
+                  )}
+                  {newRecipeInputMode === 'quantity' && (
+                    <span style={{ marginLeft: '4px', marginRight: '8px' }}>x</span>
+                  )}
+                  {newRecipeInputMode === 'grams' && isLoadingRecipeWeight && (
+                    <span style={{ marginLeft: '8px', fontSize: '0.9em', color: '#666' }}>Loading weight...</span>
+                  )}
                   <button
                     onClick={handleAddNewRecipe}
-                    disabled={isAddingRecipe || !newRecipeId || !newRecipeQuantity || parseFloat(newRecipeQuantity) <= 0}
+                    disabled={
+                      isAddingRecipe ||
+                      !newRecipeId ||
+                      !newRecipeQuantity ||
+                      parseFloat(newRecipeQuantity) <= 0 ||
+                      (newRecipeInputMode === 'grams' && isLoadingRecipeWeight)
+                    }
                     className="add-button"
                     type="button"
                   >
