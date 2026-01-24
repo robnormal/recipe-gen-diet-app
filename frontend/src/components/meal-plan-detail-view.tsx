@@ -268,6 +268,7 @@ export function MealPlanDetailView({
                   <tr>
                     <th>Nutrient</th>
                     <th>Total Amount</th>
+                    <th>% RDA</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -279,6 +280,11 @@ export function MealPlanDetailView({
                         <td>
                           {nutrient.amount.toFixed(2)}
                           {unit ? ` ${unit}` : ''}
+                        </td>
+                        <td>
+                          {nutrient.rda_percent !== null
+                            ? `${nutrient.rda_percent.toFixed(1)}%`
+                            : 'N/A'}
                         </td>
                       </tr>
                     );

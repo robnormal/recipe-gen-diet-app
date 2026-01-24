@@ -110,6 +110,7 @@ export async function getFoodDetailsWithNutrients(id: number) {
   const food = foodResult.rows[0];
 
   // Get all nutrients for this food, filtered and ordered by the display list
+  // Join with nutrient_rdas to calculate RDA percentages
   const nutrientsResult = await query(
     `SELECT 
        n.id,
@@ -117,9 +118,16 @@ export async function getFoodDetailsWithNutrients(id: number) {
        n.unit_name,
        n.rank,
        n.number,
-       fn.amount
+       fn.amount,
+       rda.adult_rda_value,
+       CASE
+         WHEN rda.adult_rda_value IS NOT NULL AND rda.adult_rda_value > 0 THEN
+           (fn.amount / rda.adult_rda_value * 100)
+         ELSE NULL
+       END as rda_percent
      FROM food_nutrients fn
      JOIN nutrients n ON fn.nutrient_id = n.id
+     LEFT JOIN nutrient_rdas rda ON n.number = rda.nutrient_number
      WHERE fn.food_id = $1
        AND n.number = ANY($2::varchar[])
      ORDER BY array_position($2::varchar[], n.number)`,
@@ -136,6 +144,7 @@ export async function getFoodDetailsWithNutrients(id: number) {
       unit: row.unit_name,
       amount: row.amount,
       rank: row.rank,
+      rda_percent: row.rda_percent !== null ? parseFloat(row.rda_percent) : null,
     })),
   };
 }
@@ -515,15 +524,22 @@ export async function calculateMealPlanNutrients(meal_plan_id: number) {
        n.unit_name,
        n.rank,
        n.number,
-       SUM((fn.amount / 100.0) * i.gram_weight * mpr.quantity) as total_amount
+       SUM((fn.amount / 100.0) * i.gram_weight * mpr.quantity) as total_amount,
+       rda.adult_rda_value,
+       CASE
+         WHEN rda.adult_rda_value IS NOT NULL AND rda.adult_rda_value > 0 THEN
+           (SUM((fn.amount / 100.0) * i.gram_weight * mpr.quantity) / rda.adult_rda_value * 100)
+         ELSE NULL
+       END as rda_percent
      FROM meal_plan_recipes mpr
      JOIN ingredients i ON mpr.recipe_id = i.recipe_id
      JOIN foods f ON i.food_id = f.id
      JOIN food_nutrients fn ON f.id = fn.food_id
      JOIN nutrients n ON fn.nutrient_id = n.id
+     LEFT JOIN nutrient_rdas rda ON n.number = rda.nutrient_number
      WHERE mpr.meal_plan_id = $1
        AND n.number = ANY($2::varchar[])
-     GROUP BY n.id, n.name, n.unit_name, n.rank, n.number
+     GROUP BY n.id, n.name, n.unit_name, n.rank, n.number, rda.adult_rda_value
      ORDER BY array_position($2::varchar[], n.number)`,
     [meal_plan_id, DISPLAY_NUTRIENT_NUMBERS]
   );
@@ -534,6 +550,7 @@ export async function calculateMealPlanNutrients(meal_plan_id: number) {
     unit: row.unit_name,
     amount: parseFloat(row.total_amount),
     rank: row.rank,
+    rda_percent: row.rda_percent !== null ? parseFloat(row.rda_percent) : null,
   }));
 }
 

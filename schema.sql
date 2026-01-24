@@ -38,6 +38,18 @@ CREATE TABLE nutrients (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Table: nutrient_rdas
+-- Recommended Daily Allowance values for nutrients (adults ≥4 years)
+CREATE TABLE nutrient_rdas (
+    id SERIAL PRIMARY KEY,
+    nutrient_number VARCHAR(10) NOT NULL UNIQUE,
+    unit VARCHAR(20) NOT NULL,
+    adult_rda_value REAL NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (nutrient_number) REFERENCES nutrients(number) ON DELETE CASCADE
+);
+
 -- Table: measure_units
 -- Units of measurement (e.g., cup, tablespoon)
 CREATE TABLE measure_units (
@@ -159,6 +171,7 @@ CREATE TABLE IF NOT EXISTS session (
 CREATE INDEX idx_foods_description ON foods(description);
 CREATE INDEX idx_foods_food_category_id ON foods(food_category_id);
 CREATE INDEX idx_nutrients_name ON nutrients(name);
+CREATE INDEX idx_nutrient_rdas_nutrient_number ON nutrient_rdas(nutrient_number);
 CREATE INDEX idx_food_nutrients_food_id ON food_nutrients(food_id);
 CREATE INDEX idx_food_nutrients_nutrient_id ON food_nutrients(nutrient_id);
 CREATE INDEX idx_food_portions_food_id ON food_portions(food_id);
@@ -177,6 +190,7 @@ CREATE INDEX idx_session_expire ON session(expire);
 COMMENT ON TABLE food_categories IS 'Categories for organizing foods (e.g., Nut and Seed Products)';
 COMMENT ON TABLE foods IS 'Main food items with basic metadata and USDA FoodData Central IDs';
 COMMENT ON TABLE nutrients IS 'Master catalog of all nutrients with their properties';
+COMMENT ON TABLE nutrient_rdas IS 'Recommended Daily Allowance (RDA) values for nutrients for adults and children ≥4 years';
 COMMENT ON TABLE measure_units IS 'Units of measurement for food portions (cup, tablespoon, etc.)';
 COMMENT ON TABLE food_portions IS 'Standard portion sizes and weights for foods';
 COMMENT ON TABLE food_nutrients IS 'Junction table storing nutrient amounts for each food';

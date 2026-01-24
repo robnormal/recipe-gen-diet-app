@@ -257,12 +257,16 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
               <tr>
                 <th>Nutrient</th>
                 <th>Amount</th>
+                <th>% RDA</th>
                 <th>Per Calorie</th>
               </tr>
             </thead>
             <tbody>
               {food.nutrients.map((nutrient) => {
                 const scaledAmount = (nutrient.amount * amount) / 100;
+                const scaledRdaPercent = nutrient.rda_percent !== null
+                  ? (nutrient.rda_percent * amount) / 100
+                  : null;
                 const totalCalories = food.calorie_density !== null && food.calorie_density !== undefined
                   ? food.calorie_density * amount
                   : null;
@@ -274,6 +278,11 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
                   <tr key={nutrient.id}>
                     <td>{nutrient.name}</td>
                     <td>{scaledAmount.toFixed(2)}{unit ? ` ${unit}` : ''}</td>
+                    <td>
+                      {scaledRdaPercent !== null
+                        ? `${scaledRdaPercent.toFixed(1)}%`
+                        : 'N/A'}
+                    </td>
                     <td>
                       {perCalorie !== null
                         ? `${perCalorie.toFixed(4)}${unit ? ` ${unit}` : ''}`
