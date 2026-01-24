@@ -160,62 +160,73 @@ export function MealPlanDetailView({
                   <tr>
                     <th>Recipe Name</th>
                     <th>Quantity</th>
+                    <th>Gram Weight</th>
+                    <th>Calorie Density</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {mealPlan?.recipes.map((mealPlanRecipe) => (
-                    <tr key={mealPlanRecipe.id}>
-                      <td>{mealPlanRecipe.recipe_name}</td>
-                      <td>
-                        {editingRecipeId === mealPlanRecipe.recipe_id ? (
-                          <div className="inline-edit">
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="0.1"
-                              value={editingQuantity}
-                              onChange={(e) => setEditingQuantity(e.target.value)}
-                              className="form-input inline-input"
-                            />
-                            <button
-                              onClick={() => handleSaveRecipeQuantity(mealPlanRecipe.recipe_id)}
-                              disabled={isUpdatingRecipe || !editingQuantity || parseFloat(editingQuantity) <= 0}
-                              className="save-button"
-                              type="button"
-                            >
-                              Save
-                            </button>
-                            <button onClick={handleCancelEditRecipe} className="cancel-button" type="button">
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <span>{mealPlanRecipe.quantity}x</span>
-                        )}
-                      </td>
-                      <td>
-                        {editingRecipeId === mealPlanRecipe.recipe_id ? null : (
-                          <div className="recipe-actions">
-                            <button
-                              onClick={() => handleStartEditRecipe(mealPlanRecipe.recipe_id, mealPlanRecipe.quantity)}
-                              className="edit-button"
-                              type="button"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => onRemoveRecipe(mealPlanRecipe.recipe_id)}
-                              className="delete-button"
-                              type="button"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {mealPlan?.recipes.map((mealPlanRecipe) => {
+                    const totalGramWeight = mealPlanRecipe.recipe_total_weight * mealPlanRecipe.quantity;
+                    return (
+                      <tr key={mealPlanRecipe.id}>
+                        <td>{mealPlanRecipe.recipe_name}</td>
+                        <td>
+                          {editingRecipeId === mealPlanRecipe.recipe_id ? (
+                            <div className="inline-edit">
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0.1"
+                                value={editingQuantity}
+                                onChange={(e) => setEditingQuantity(e.target.value)}
+                                className="form-input inline-input"
+                              />
+                              <button
+                                onClick={() => handleSaveRecipeQuantity(mealPlanRecipe.recipe_id)}
+                                disabled={isUpdatingRecipe || !editingQuantity || parseFloat(editingQuantity) <= 0}
+                                className="save-button"
+                                type="button"
+                              >
+                                Save
+                              </button>
+                              <button onClick={handleCancelEditRecipe} className="cancel-button" type="button">
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <span>{mealPlanRecipe.quantity}x</span>
+                          )}
+                        </td>
+                        <td>{totalGramWeight.toFixed(1)} g</td>
+                        <td>
+                          {mealPlanRecipe.recipe_calorie_density !== null
+                            ? `${mealPlanRecipe.recipe_calorie_density.toFixed(1)} kcal/g`
+                            : 'N/A'}
+                        </td>
+                        <td>
+                          {editingRecipeId === mealPlanRecipe.recipe_id ? null : (
+                            <div className="recipe-actions">
+                              <button
+                                onClick={() => handleStartEditRecipe(mealPlanRecipe.recipe_id, mealPlanRecipe.quantity)}
+                                className="edit-button"
+                                type="button"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => onRemoveRecipe(mealPlanRecipe.recipe_id)}
+                                className="delete-button"
+                                type="button"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

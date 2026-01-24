@@ -146,6 +146,8 @@ export interface MealPlanRecipe {
   updated_at: string;
   recipe_name: string;
   recipe_description: string | null;
+  recipe_total_weight: number;
+  recipe_calorie_density: number | null;
 }
 
 export interface MealPlanWithRecipes extends MealPlan {

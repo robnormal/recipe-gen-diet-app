@@ -500,14 +500,34 @@ export async function removeRecipeFromMealPlan(meal_plan_id: number, recipe_id: 
 export async function getMealPlanRecipes(meal_plan_id: number) {
   const result = await query(
     `SELECT mpr.id, mpr.meal_plan_id, mpr.recipe_id, mpr.quantity, mpr.created_at, mpr.updated_at,
-            r.name as recipe_name, r.description as recipe_description
+            r.name as recipe_name, r.description as recipe_description,
+            COALESCE(recipe_stats.recipe_total_weight, 0) as recipe_total_weight,
+            recipe_stats.recipe_calorie_density
      FROM meal_plan_recipes mpr
      JOIN recipes r ON mpr.recipe_id = r.id
+     LEFT JOIN (
+       SELECT 
+         r.id as recipe_id,
+         COALESCE(SUM(i.gram_weight), 0) as recipe_total_weight,
+         CASE
+           WHEN SUM(i.gram_weight) > 0 THEN
+             SUM(f.calorie_density * i.gram_weight) / SUM(i.gram_weight)
+           ELSE NULL
+         END as recipe_calorie_density
+       FROM recipes r
+       LEFT JOIN ingredients i ON r.id = i.recipe_id
+       LEFT JOIN foods f ON i.food_id = f.id AND f.calorie_density IS NOT NULL
+       GROUP BY r.id
+     ) recipe_stats ON mpr.recipe_id = recipe_stats.recipe_id
      WHERE mpr.meal_plan_id = $1
      ORDER BY mpr.id`,
     [meal_plan_id]
   );
-  return result.rows;
+  return result.rows.map(row => ({
+    ...row,
+    recipe_total_weight: parseFloat(row.recipe_total_weight),
+    recipe_calorie_density: row.recipe_calorie_density !== null ? parseFloat(row.recipe_calorie_density) : null,
+  }));
 }
 
 // Calculate meal plan nutrient totals
