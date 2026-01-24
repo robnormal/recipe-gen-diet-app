@@ -99,7 +99,7 @@ async function main() {
     await pool.query('SELECT 1');
     console.log('✓ Connected to database');
 
-    const csvFile = process.argv[2] || path.join(__dirname, '../data/nutrient_rdas.csv');
+    const csvFile = process.argv[2] || path.join(__dirname, '../../nutrition_data/nutrient_rdas.csv');
     const csvPath = path.resolve(csvFile);
 
     if (!fs.existsSync(csvPath)) {
