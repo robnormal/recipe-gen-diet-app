@@ -249,22 +249,76 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
                                 onChange={(e) => {
                                   const value = e.target.value;
                                   if (value === 'grams') {
+                                    // Converting from portion to grams
+                                    if (editSelectedMeasurementType === 'portion' && editSelectedPortionId) {
+                                      const previousPortion = editAvailablePortions.find((p) => p.id === editSelectedPortionId);
+                                      if (previousPortion && editIngredientData.quantity) {
+                                        const quantity = parseFloat(editIngredientData.quantity);
+                                        if (!isNaN(quantity) && quantity > 0) {
+                                          // Calculate gram weight: (quantity / portion.amount) * portion.gram_weight
+                                          const gramWeight = (quantity / previousPortion.amount) * previousPortion.gram_weight;
+                                          setEditIngredientData({
+                                            ...editIngredientData,
+                                            gram_weight: gramWeight.toString(),
+                                            quantity: '',
+                                          });
+                                        } else {
+                                          setEditIngredientData({ ...editIngredientData, quantity: '' });
+                                        }
+                                      } else {
+                                        setEditIngredientData({ ...editIngredientData, quantity: '' });
+                                      }
+                                    } else {
+                                      // No previous value to convert, just clear quantity
+                                      setEditIngredientData({ ...editIngredientData, quantity: '' });
+                                    }
                                     setEditSelectedMeasurementType('grams');
                                     setEditSelectedPortionId(null);
-                                    setEditIngredientData({ ...editIngredientData, quantity: '' });
                                   } else if (value.startsWith('portion-')) {
                                     const portionId = parseInt(value.replace('portion-', ''), 10);
-                                    setEditSelectedMeasurementType('portion');
-                                    setEditSelectedPortionId(portionId);
-                                    const selectedPortion = editAvailablePortions.find((p) => p.id === portionId);
-                                    if (selectedPortion) {
-                                      const newQuantity =
-                                        editIngredientData.quantity || selectedPortion.amount.toString();
+                                    const newPortion = editAvailablePortions.find((p) => p.id === portionId);
+                                    
+                                    if (newPortion) {
+                                      let newQuantity: string;
+                                      
+                                      if (editSelectedMeasurementType === 'grams' && editIngredientData.gram_weight) {
+                                        // Converting from grams to portion
+                                        const gramWeight = parseFloat(editIngredientData.gram_weight);
+                                        if (!isNaN(gramWeight) && gramWeight > 0) {
+                                          // Calculate quantity: (gram_weight / portion.gram_weight) * portion.amount
+                                          const quantity = (gramWeight / newPortion.gram_weight) * newPortion.amount;
+                                          newQuantity = quantity.toString();
+                                        } else {
+                                          newQuantity = newPortion.amount.toString();
+                                        }
+                                      } else if (editSelectedMeasurementType === 'portion' && editSelectedPortionId && editIngredientData.quantity) {
+                                        // Converting from one portion to another
+                                        const previousPortion = editAvailablePortions.find((p) => p.id === editSelectedPortionId);
+                                        if (previousPortion) {
+                                          const oldQuantity = parseFloat(editIngredientData.quantity);
+                                          if (!isNaN(oldQuantity) && oldQuantity > 0) {
+                                            // Convert to grams first, then to new portion
+                                            const gramWeight = (oldQuantity / previousPortion.amount) * previousPortion.gram_weight;
+                                            const quantity = (gramWeight / newPortion.gram_weight) * newPortion.amount;
+                                            newQuantity = quantity.toString();
+                                          } else {
+                                            newQuantity = newPortion.amount.toString();
+                                          }
+                                        } else {
+                                          newQuantity = newPortion.amount.toString();
+                                        }
+                                      } else {
+                                        // No previous value, use base portion amount
+                                        newQuantity = editIngredientData.quantity || newPortion.amount.toString();
+                                      }
+                                      
                                       setEditIngredientData({
                                         ...editIngredientData,
                                         quantity: newQuantity,
                                         gram_weight: '',
                                       });
+                                      setEditSelectedMeasurementType('portion');
+                                      setEditSelectedPortionId(portionId);
                                     }
                                   } else {
                                     setEditSelectedMeasurementType(null);
@@ -457,20 +511,76 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
                         onChange={(e) => {
                           const value = e.target.value;
                           if (value === 'grams') {
+                            // Converting from portion to grams
+                            if (selectedMeasurementType === 'portion' && selectedPortionId) {
+                              const previousPortion = availablePortions.find((p) => p.id === selectedPortionId);
+                              if (previousPortion && newIngredient.quantity) {
+                                const quantity = parseFloat(newIngredient.quantity);
+                                if (!isNaN(quantity) && quantity > 0) {
+                                  // Calculate gram weight: (quantity / portion.amount) * portion.gram_weight
+                                  const gramWeight = (quantity / previousPortion.amount) * previousPortion.gram_weight;
+                                  setNewIngredient({
+                                    ...newIngredient,
+                                    gram_weight: gramWeight.toString(),
+                                    quantity: '',
+                                  });
+                                } else {
+                                  setNewIngredient({ ...newIngredient, quantity: '' });
+                                }
+                              } else {
+                                setNewIngredient({ ...newIngredient, quantity: '' });
+                              }
+                            } else {
+                              // No previous value to convert, just clear quantity
+                              setNewIngredient({ ...newIngredient, quantity: '' });
+                            }
                             setSelectedMeasurementType('grams');
                             setSelectedPortionId(null);
-                            setNewIngredient({ ...newIngredient, quantity: '' });
                           } else if (value.startsWith('portion-')) {
                             const portionId = parseInt(value.replace('portion-', ''), 10);
-                            setSelectedMeasurementType('portion');
-                            setSelectedPortionId(portionId);
-                            const selectedPortion = availablePortions.find((p) => p.id === portionId);
-                            if (selectedPortion) {
+                            const newPortion = availablePortions.find((p) => p.id === portionId);
+                            
+                            if (newPortion) {
+                              let newQuantity: string;
+                              
+                              if (selectedMeasurementType === 'grams' && newIngredient.gram_weight) {
+                                // Converting from grams to portion
+                                const gramWeight = parseFloat(newIngredient.gram_weight);
+                                if (!isNaN(gramWeight) && gramWeight > 0) {
+                                  // Calculate quantity: (gram_weight / portion.gram_weight) * portion.amount
+                                  const quantity = (gramWeight / newPortion.gram_weight) * newPortion.amount;
+                                  newQuantity = quantity.toString();
+                                } else {
+                                  newQuantity = newPortion.amount.toString();
+                                }
+                              } else if (selectedMeasurementType === 'portion' && selectedPortionId && newIngredient.quantity) {
+                                // Converting from one portion to another
+                                const previousPortion = availablePortions.find((p) => p.id === selectedPortionId);
+                                if (previousPortion) {
+                                  const oldQuantity = parseFloat(newIngredient.quantity);
+                                  if (!isNaN(oldQuantity) && oldQuantity > 0) {
+                                    // Convert to grams first, then to new portion
+                                    const gramWeight = (oldQuantity / previousPortion.amount) * previousPortion.gram_weight;
+                                    const quantity = (gramWeight / newPortion.gram_weight) * newPortion.amount;
+                                    newQuantity = quantity.toString();
+                                  } else {
+                                    newQuantity = newPortion.amount.toString();
+                                  }
+                                } else {
+                                  newQuantity = newPortion.amount.toString();
+                                }
+                              } else {
+                                // No previous value, use base portion amount
+                                newQuantity = newPortion.amount.toString();
+                              }
+                              
                               setNewIngredient({
                                 ...newIngredient,
-                                quantity: selectedPortion.amount.toString(),
+                                quantity: newQuantity,
                                 gram_weight: '',
                               });
+                              setSelectedMeasurementType('portion');
+                              setSelectedPortionId(portionId);
                             }
                           } else {
                             setSelectedMeasurementType(null);
