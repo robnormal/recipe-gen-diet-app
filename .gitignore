@@ -6,10 +6,10 @@ dist
 logs/
 
 # Ignore USDA data import files
-usda_data/**/*.json
-usda_data/**/*.csv
-usda_data/**/*.zip
-usda_data/**/*.xlsx
+nutrition_data/**/*.json
+nutrition_data/**/*.csv
+nutrition_data/**/*.zip
+nutrition_data/**/*.xlsx
 
 # Vim swap files
 *.sw?
