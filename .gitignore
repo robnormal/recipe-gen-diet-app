@@ -18,3 +18,5 @@ usda_data/**/*.xlsx
 .idea
 .vscode
 .cursor
+postgres_data
+
