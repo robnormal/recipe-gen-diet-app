@@ -60,7 +60,10 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
       // Show portion description: amount + modifier (e.g., "2 cups" or "1 tablespoon")
       const amount = ingredient.portion_amount.toString();
       const modifier = ingredient.portion_modifier ? ` ${ingredient.portion_modifier}` : '';
-      return `${amount}${modifier}`;
+      const gramWeight = ingredient.portion_gram_weight !== null 
+        ? ` (${Math.round(ingredient.portion_gram_weight)}g)`
+        : '';
+      return `${amount}${modifier}${gramWeight}`;
     }
     return 'g';
   };

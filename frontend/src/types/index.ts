@@ -71,6 +71,7 @@ export interface IngredientWithFood extends Ingredient {
   calorie_density: number | null;
   portion_amount: number | null;
   portion_modifier: string | null;
+  portion_gram_weight: number | null;
 }
 
 export interface FoodPortion {

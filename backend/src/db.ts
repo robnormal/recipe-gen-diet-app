@@ -331,7 +331,7 @@ export async function getIngredientsWithFoods(recipe_id: number) {
   const result = await query(
     `SELECT i.id, i.recipe_id, i.food_id, i.food_portion_id, i.quantity, i.gram_weight,
               i.created_at, i.updated_at, f.description as food_description, f.calorie_density,
-              fp.amount as portion_amount, fp.modifier as portion_modifier
+              fp.amount as portion_amount, fp.modifier as portion_modifier, fp.gram_weight as portion_gram_weight
        FROM ingredients i
        JOIN foods f ON i.food_id = f.id
        LEFT JOIN food_portions fp ON i.food_portion_id = fp.id

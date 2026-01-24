@@ -147,7 +147,7 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
             <option value="grams">Grams</option>
             {availablePortions.map((portion) => {
               const modifier = portion.modifier ? ` ${portion.modifier}` : '';
-              const portionLabel = `${portion.amount}${modifier}`;
+              const portionLabel = `${portion.amount}${modifier} (${Math.round(portion.gram_weight)}g)`;
               return (
                 <option key={portion.id} value={`portion-${portion.id}`}>
                   {portionLabel}

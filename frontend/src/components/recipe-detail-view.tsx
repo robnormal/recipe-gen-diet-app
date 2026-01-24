@@ -279,7 +279,7 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
                                 <option value="grams">g</option>
                                 {editAvailablePortions.map((portion) => {
                                   const modifier = portion.modifier ? ` ${portion.modifier}` : '';
-                                  const portionLabel = `${modifier}`;
+                                  const portionLabel = `${portion.amount}${modifier ? ' ' + modifier : ''} (${Math.round(portion.gram_weight)}g)`;
                                   return (
                                     <option key={portion.id} value={`portion-${portion.id}`}>
                                       {portionLabel}
@@ -485,7 +485,7 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
                         <option value="grams">Grams</option>
                         {availablePortions.map((portion) => {
                           const modifier = portion.modifier ? ` ${portion.modifier}` : '';
-                          const portionLabel = `${portion.amount} ${modifier}`;
+                          const portionLabel = `${portion.amount}${modifier ? ' ' + modifier : ''} (${Math.round(portion.gram_weight)}g)`;
                           return (
                             <option key={portion.id} value={`portion-${portion.id}`}>
                               {portionLabel}
