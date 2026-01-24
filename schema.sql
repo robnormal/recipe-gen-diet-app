@@ -119,6 +119,33 @@ CREATE TABLE ingredients (
     FOREIGN KEY (food_portion_id) REFERENCES food_portions(id) ON DELETE SET NULL
 );
 
+-- Table: meal_plans
+-- User-created meal plans (collections of recipes)
+CREATE TABLE meal_plans (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, name)
+);
+
+-- Table: meal_plan_recipes
+-- Junction table linking meal plans to recipes with quantities
+CREATE TABLE meal_plan_recipes (
+    id SERIAL PRIMARY KEY,
+    meal_plan_id INTEGER NOT NULL,
+    recipe_id INTEGER NOT NULL,
+    quantity REAL NOT NULL DEFAULT 1.0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meal_plan_id) REFERENCES meal_plans(id) ON DELETE CASCADE,
+    FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
+    UNIQUE(meal_plan_id, recipe_id)
+);
+
 -- Table: session
 -- Express-session PostgreSQL store for user sessions
 -- Note: connect-pg-simple will create this table automatically, but it's documented here for reference
@@ -141,6 +168,9 @@ CREATE INDEX idx_recipes_user_id ON recipes(user_id);
 CREATE INDEX idx_ingredients_recipe_id ON ingredients(recipe_id);
 CREATE INDEX idx_ingredients_food_id ON ingredients(food_id);
 CREATE INDEX idx_ingredients_food_portion_id ON ingredients(food_portion_id);
+CREATE INDEX idx_meal_plans_user_id ON meal_plans(user_id);
+CREATE INDEX idx_meal_plan_recipes_meal_plan_id ON meal_plan_recipes(meal_plan_id);
+CREATE INDEX idx_meal_plan_recipes_recipe_id ON meal_plan_recipes(recipe_id);
 CREATE INDEX idx_session_expire ON session(expire);
 
 -- Comments for documentation
@@ -153,4 +183,6 @@ COMMENT ON TABLE food_nutrients IS 'Junction table storing nutrient amounts for 
 COMMENT ON TABLE users IS 'User accounts with authentication credentials';
 COMMENT ON TABLE recipes IS 'User-authored recipes with instructions and metadata';
 COMMENT ON TABLE ingredients IS 'Recipe ingredients linking recipes to foods with quantities and units';
+COMMENT ON TABLE meal_plans IS 'User-created meal plans (collections of recipes)';
+COMMENT ON TABLE meal_plan_recipes IS 'Junction table linking meal plans to recipes with quantities';
 COMMENT ON TABLE session IS 'Express-session store for user authentication sessions';

@@ -6,6 +6,8 @@ import { RecipeCreationForms } from './components/recipe-creation-forms';
 import { RecipeList } from './components/recipe-list';
 import { RecipeDetailView } from './components/recipe-detail-view';
 import { FoodDetailView } from './components/food-detail-view';
+import { MealPlanList } from './components/meal-plan-list';
+import { MealPlanDetailView } from './components/meal-plan-detail-view';
 import { useAuth } from './hooks/useAuth';
 import { useRecipesList } from './hooks/useRecipesList';
 import { useRecipeCreation } from './hooks/useRecipeCreation';
@@ -13,12 +15,14 @@ import { useFoodSearch } from './hooks/useFoodSearch';
 import { useIngredientForm } from './hooks/useIngredientForm';
 import { useRecipeDetail } from './hooks/useRecipeDetail';
 import { useFoodDetail } from './hooks/useFoodDetail';
+import { useMealPlansList } from './hooks/useMealPlansList';
+import { useMealPlanDetail } from './hooks/useMealPlanDetail';
 import { useNavigation } from './hooks/useNavigation';
 
 function App() {
   // Navigation
   const navigation = useNavigation();
-  const { view, recipeId, foodId, navigate } = navigation;
+  const { view, recipeId, foodId, mealPlanId, navigate } = navigation;
 
   // Authentication
   const auth = useAuth();
@@ -83,13 +87,35 @@ function App() {
   const foodDetail = useFoodDetail({ navigate });
   const { foodDetailState, handlers: foodDetailHandlers } = foodDetail;
 
-  // Fetch categories and recipes when user is authenticated
+  // Meal plans list
+  const mealPlansList = useMealPlansList(user);
+  const { mealPlans, isLoadingMealPlans, mealPlansError, refreshMealPlans, createMealPlan, isCreatingMealPlan, createError } = mealPlansList;
+
+  // Meal plan detail
+  const mealPlanDetail = useMealPlanDetail({
+    onMealPlanChange: () => {
+      refreshMealPlans();
+    },
+    navigate,
+  });
+  const {
+    mealPlanDetailState,
+    name,
+    setName,
+    description,
+    setDescription,
+    handlers: mealPlanDetailHandlers,
+  } = mealPlanDetail;
+
+  // Fetch categories, recipes, and meal plans when user is authenticated
   useEffect(() => {
     if (user) {
       categoryState.fetchCategories();
       refreshRecipes();
+      refreshMealPlans();
     } else {
       recipesList.setRecipes([]);
+      mealPlansList.setMealPlans([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -109,12 +135,20 @@ function App() {
       if (foodDetailState.selectedFood?.id !== foodId) {
         foodDetailHandlers.onFoodClick(foodId);
       }
+    } else if (view === 'mealPlanDetail' && mealPlanId !== null) {
+      const mealPlan = mealPlans.find(mp => mp.id === mealPlanId);
+      if (mealPlan && mealPlanDetailState.selectedMealPlan?.id !== mealPlanId) {
+        mealPlanDetailHandlers.onMealPlanClick(mealPlan);
+      }
     } else if (view === 'list' && recipeDetailState.selectedRecipe !== null) {
       // Clear recipe detail state when navigating back to list
       recipeDetail.handlers.onBack();
       foodSearch.clearSearchResults();
       ingredientForm.resetFunctions.resetNewIngredientForm();
       ingredientForm.resetFunctions.resetEditIngredientState();
+    } else if (view === 'mealPlans' && mealPlanDetailState.selectedMealPlan !== null) {
+      // Clear meal plan detail state when navigating back to meal plans list
+      mealPlanDetailHandlers.onBack();
     }
 
     // Handle navigation to create/generate forms
@@ -131,7 +165,7 @@ function App() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, recipeId, foodId, user]);
+  }, [view, recipeId, foodId, mealPlanId, user]);
 
   // Show loading state while checking authentication
   if (isCheckingAuth) {
@@ -170,6 +204,14 @@ function App() {
   return (
     <div className="App">
       <AppHeader user={user} onLogout={logout} />
+      <nav className="main-nav">
+        <button onClick={() => navigate('list')} className={view === 'list' ? 'active' : ''}>
+          Recipes
+        </button>
+        <button onClick={() => navigate('mealPlans')} className={view === 'mealPlans' ? 'active' : ''}>
+          Meal Plans
+        </button>
+      </nav>
 
       {view === 'food' ? (
         <FoodDetailView
@@ -177,6 +219,43 @@ function App() {
           isLoading={foodDetailState.isLoadingFood}
           error={foodDetailState.foodError}
           onBack={foodDetailHandlers.onBack}
+        />
+      ) : view === 'mealPlanDetail' && mealPlanDetailState.selectedMealPlan ? (
+        <MealPlanDetailView
+          mealPlan={mealPlanDetailState.selectedMealPlan}
+          isLoadingMealPlan={mealPlanDetailState.isLoadingMealPlan}
+          mealPlanUpdateError={mealPlanDetailState.mealPlanUpdateError}
+          mealPlanUpdateSuccess={mealPlanDetailState.mealPlanUpdateSuccess}
+          isUpdatingMealPlan={mealPlanDetailState.isUpdatingMealPlan}
+          isDeletingMealPlan={mealPlanDetailState.isDeletingMealPlan}
+          isAddingRecipe={mealPlanDetailState.isAddingRecipe}
+          isUpdatingRecipe={mealPlanDetailState.isUpdatingRecipe}
+          recipeError={mealPlanDetailState.recipeError}
+          name={name}
+          setName={setName}
+          description={description}
+          setDescription={setDescription}
+          onBack={() => navigate('mealPlans')}
+          onUpdateMealPlan={mealPlanDetailHandlers.onUpdateMealPlan}
+          onDeleteMealPlan={mealPlanDetailHandlers.onDeleteMealPlan}
+          onAddRecipe={mealPlanDetailHandlers.onAddRecipe}
+          onUpdateRecipeQuantity={mealPlanDetailHandlers.onUpdateRecipeQuantity}
+          onRemoveRecipe={mealPlanDetailHandlers.onRemoveRecipe}
+          availableRecipes={recipes}
+        />
+      ) : view === 'mealPlans' ? (
+        <MealPlanList
+          mealPlans={mealPlans}
+          isLoadingMealPlans={isLoadingMealPlans}
+          mealPlansError={mealPlansError}
+          onMealPlanClick={mealPlanDetailHandlers.onMealPlanClick}
+          onCreateMealPlan={async (name, description) => {
+            const newMealPlan = await createMealPlan(name, description);
+            navigate('mealPlanDetail', newMealPlan.id);
+            mealPlanDetailHandlers.onMealPlanClick(newMealPlan);
+          }}
+          isCreatingMealPlan={isCreatingMealPlan}
+          createError={createError}
         />
       ) : view === 'detail' && recipeDetailState.selectedRecipe ? (
         <RecipeDetailView

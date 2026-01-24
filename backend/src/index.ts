@@ -17,7 +17,18 @@ import {
   getIngredientsWithFoods,
   updateIngredient,
   deleteIngredient,
-  calculateRecipeCalorieDensity
+  calculateRecipeCalorieDensity,
+  listMealPlans,
+  getMealPlanById,
+  createMealPlan,
+  updateMealPlan,
+  deleteMealPlan,
+  addRecipeToMealPlan,
+  updateMealPlanRecipeQuantity,
+  removeRecipeFromMealPlan,
+  getMealPlanRecipes,
+  calculateMealPlanNutrients,
+  calculateMealPlanCalorieDensity
 } from './db';
 import express from 'express';
 import cors from 'cors';
@@ -140,6 +151,25 @@ async function requireIngredient(req: express.Request, res: express.Response, ne
     }
     if (existingIngredient.recipe_id !== parseInt(recipeId)) {
       return sendError(res, 404, 'Ingredient not found in this recipe');
+    }
+    next();
+  } catch (error) {
+    sendGenericError(error, res);
+  }
+}
+
+// Meal plan verification middleware
+async function requireMealPlan(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const { id } = req.params;
+  const userId = req.session.userId!;
+
+  try {
+    const mealPlan = await getMealPlanById(parseInt(id));
+    if (!mealPlan) {
+      return sendError(res, 404, 'Meal plan not found');
+    }
+    if (mealPlan.user_id !== userId) {
+      return sendError(res, 403, 'Access denied');
     }
     next();
   } catch (error) {
@@ -514,6 +544,176 @@ app.post('/api/recipes/generate', requireAuth, asyncHandler(async (req, res) => 
     }
     return sendError(res, 500, 'Failed to generate recipe');
   }
+}));
+
+// Meal Plans CRUD
+app.get('/api/meal-plans', requireAuth, asyncHandler(async (req, res) => {
+  const userId = req.session.userId!;
+
+  const limit = inputToNumber(req.query.limit) || 20;
+  const offset = inputToNumber(req.query.offset) || 0;
+
+  const { results, total } = await listMealPlans(userId, limit, offset);
+
+  res.json({ results, pagination: { total, limit, offset } });
+}));
+
+app.get('/api/meal-plans/:id', requireAuth, requireMealPlan, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const mealPlan = await getMealPlanById(parseInt(id));
+  if (!mealPlan) {
+    return sendError(res, 404, 'Meal plan not found');
+  }
+
+  const recipes = await getMealPlanRecipes(parseInt(id));
+  const nutrients = await calculateMealPlanNutrients(parseInt(id));
+  const calorie_density = await calculateMealPlanCalorieDensity(parseInt(id));
+
+  res.json({
+    ...mealPlan,
+    recipes,
+    nutrients,
+    calorie_density
+  });
+}));
+
+app.post('/api/meal-plans', requireAuth, async (req, res) => {
+  const { name, description } = req.body;
+  const user_id = req.session.userId!;
+
+  if (!name) {
+    return sendError(res, 400, 'Field "name" is required');
+  }
+
+  try {
+    const mealPlan = await createMealPlan(
+      user_id,
+      name,
+      description ?? null
+    );
+    res.status(201).json(mealPlan);
+  } catch (error: unknown) {
+    if ((error as { code: string })?.code === '23505') {
+      return sendError(res, 409, 'Meal plan with that name already exists for this user');
+    }
+    sendError(res, 500, 'Database error');
+  }
+});
+
+app.put('/api/meal-plans/:id', requireAuth, requireMealPlan, async (req, res) => {
+  const { id } = req.params;
+  const { name, description } = req.body;
+
+  try {
+    const mealPlan = await updateMealPlan(
+      parseInt(id),
+      name ?? null,
+      description ?? null
+    );
+    if (!mealPlan) {
+      return sendError(res, 404, 'Meal plan not found');
+    }
+    res.json(mealPlan);
+  } catch (error: unknown) {
+    if ((error as { code: string })?.code === '23505') {
+      return sendError(res, 409, 'Meal plan with that name already exists for this user');
+    }
+    sendError(res, 500, 'Database error');
+  }
+});
+
+app.delete('/api/meal-plans/:id', requireAuth, requireMealPlan, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const deleted = await deleteMealPlan(parseInt(id));
+  if (!deleted) {
+    return sendError(res, 404, 'Meal plan not found');
+  }
+  res.status(204).send();
+}));
+
+// Meal Plan Recipes endpoints
+app.get('/api/meal-plans/:id/recipes', requireAuth, requireMealPlan, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const recipes = await getMealPlanRecipes(parseInt(id));
+  res.json({ recipes });
+}));
+
+app.post('/api/meal-plans/:id/recipes', requireAuth, requireMealPlan, async (req, res) => {
+  const { id } = req.params;
+  const { recipe_id, quantity } = req.body;
+
+  if (!recipe_id) {
+    return sendError(res, 400, 'Field "recipe_id" is required');
+  }
+
+  const recipeQuantity = quantity !== undefined ? parseFloat(quantity) : 1.0;
+  if (isNaN(recipeQuantity) || recipeQuantity <= 0) {
+    return sendError(res, 400, 'Field "quantity" must be a positive number');
+  }
+
+  try {
+    // Verify recipe exists and belongs to user
+    const recipe = await getRecipeById(parseInt(recipe_id));
+    if (!recipe) {
+      return sendError(res, 404, 'Recipe not found');
+    }
+    if (recipe.user_id !== req.session.userId) {
+      return sendError(res, 403, 'Access denied');
+    }
+
+    const mealPlanRecipe = await addRecipeToMealPlan(
+      parseInt(id),
+      parseInt(recipe_id),
+      recipeQuantity
+    );
+    res.status(201).json(mealPlanRecipe);
+  } catch (error: unknown) {
+    if (sendPgConstraintError(res, error, {
+      recipe_id: [404, 'Recipe not found'],
+      '': [400, 'Invalid reference'],
+    })) {
+      return;
+    }
+    sendGenericError(error, res);
+  }
+});
+
+app.put('/api/meal-plans/:id/recipes/:recipeId', requireAuth, requireMealPlan, async (req, res) => {
+  const { id, recipeId } = req.params;
+  const { quantity } = req.body;
+
+  if (quantity === undefined) {
+    return sendError(res, 400, 'Field "quantity" is required');
+  }
+
+  const recipeQuantity = parseFloat(quantity);
+  if (isNaN(recipeQuantity) || recipeQuantity <= 0) {
+    return sendError(res, 400, 'Field "quantity" must be a positive number');
+  }
+
+  try {
+    const mealPlanRecipe = await updateMealPlanRecipeQuantity(
+      parseInt(id),
+      parseInt(recipeId),
+      recipeQuantity
+    );
+    if (!mealPlanRecipe) {
+      return sendError(res, 404, 'Recipe not found in meal plan');
+    }
+    res.json(mealPlanRecipe);
+  } catch (error: unknown) {
+    sendGenericError(error, res);
+  }
+});
+
+app.delete('/api/meal-plans/:id/recipes/:recipeId', requireAuth, requireMealPlan, asyncHandler(async (req, res) => {
+  const { id, recipeId } = req.params;
+
+  const deleted = await removeRecipeFromMealPlan(parseInt(id), parseInt(recipeId));
+  if (!deleted) {
+    return sendError(res, 404, 'Recipe not found in meal plan');
+  }
+  res.status(204).send();
 }));
 
 

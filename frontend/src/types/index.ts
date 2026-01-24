@@ -116,3 +116,38 @@ export interface FoodDetail {
   calorie_density: number | null;
   nutrients: FoodNutrient[];
 }
+
+export interface MealPlan {
+  id: number;
+  user_id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MealPlansResponse {
+  results: MealPlan[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+}
+
+export interface MealPlanRecipe {
+  id: number;
+  meal_plan_id: number;
+  recipe_id: number;
+  quantity: number;
+  created_at: string;
+  updated_at: string;
+  recipe_name: string;
+  recipe_description: string | null;
+}
+
+export interface MealPlanWithRecipes extends MealPlan {
+  recipes: MealPlanRecipe[];
+  nutrients: FoodNutrient[];
+  calorie_density: number | null;
+}

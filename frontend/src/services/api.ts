@@ -4,6 +4,10 @@ import {
   FoodPortion,
   Ingredient,
   IngredientWithFood,
+  MealPlan,
+  MealPlansResponse,
+  MealPlanRecipe,
+  MealPlanWithRecipes,
   Recipe,
   RecipesResponse,
   User,
@@ -168,6 +172,109 @@ export async function updateIngredient(
 
 export async function deleteIngredient(recipeId: number, ingredientId: number): Promise<void> {
   const response = await fetch(`/api/recipes/${recipeId}/ingredients/${ingredientId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const message = await getErrorMessage(response);
+    throw new ApiError(message, response.status);
+  }
+}
+
+// Meal Plan API functions
+export async function fetchMealPlans(limit = 100, offset = 0): Promise<MealPlan[]> {
+  const response = await fetch(`/api/meal-plans?limit=${limit}&offset=${offset}`, {
+    credentials: 'include',
+  });
+
+  const data = await handleResponse<MealPlansResponse>(response);
+  return data.results;
+}
+
+export async function fetchMealPlan(mealPlanId: number): Promise<MealPlanWithRecipes> {
+  const response = await fetch(`/api/meal-plans/${mealPlanId}`, {
+    credentials: 'include',
+  });
+
+  return handleResponse<MealPlanWithRecipes>(response);
+}
+
+export async function createMealPlan(data: {
+  name: string;
+  description?: string | null;
+}): Promise<MealPlan> {
+  const response = await fetch('/api/meal-plans', {
+    method: 'POST',
+    headers: defaultHeaders,
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse<MealPlan>(response);
+}
+
+export async function updateMealPlan(
+  mealPlanId: number,
+  data: {
+    name?: string;
+    description?: string | null;
+  }
+): Promise<MealPlan> {
+  const response = await fetch(`/api/meal-plans/${mealPlanId}`, {
+    method: 'PUT',
+    headers: defaultHeaders,
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse<MealPlan>(response);
+}
+
+export async function deleteMealPlan(mealPlanId: number): Promise<void> {
+  const response = await fetch(`/api/meal-plans/${mealPlanId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const message = await getErrorMessage(response);
+    throw new ApiError(message, response.status);
+  }
+}
+
+export async function addRecipeToMealPlan(
+  mealPlanId: number,
+  recipeId: number,
+  quantity: number = 1.0
+): Promise<MealPlanRecipe> {
+  const response = await fetch(`/api/meal-plans/${mealPlanId}/recipes`, {
+    method: 'POST',
+    headers: defaultHeaders,
+    credentials: 'include',
+    body: JSON.stringify({ recipe_id: recipeId, quantity }),
+  });
+
+  return handleResponse<MealPlanRecipe>(response);
+}
+
+export async function updateMealPlanRecipe(
+  mealPlanId: number,
+  recipeId: number,
+  quantity: number
+): Promise<MealPlanRecipe> {
+  const response = await fetch(`/api/meal-plans/${mealPlanId}/recipes/${recipeId}`, {
+    method: 'PUT',
+    headers: defaultHeaders,
+    credentials: 'include',
+    body: JSON.stringify({ quantity }),
+  });
+
+  return handleResponse<MealPlanRecipe>(response);
+}
+
+export async function removeRecipeFromMealPlan(mealPlanId: number, recipeId: number): Promise<void> {
+  const response = await fetch(`/api/meal-plans/${mealPlanId}/recipes/${recipeId}`, {
     method: 'DELETE',
     credentials: 'include',
   });

@@ -378,3 +378,195 @@ export async function calculateRecipeCalorieDensity(recipe_id: number): Promise<
   );
   return result.rows[0]?.calorie_density ?? null;
 }
+
+// Meal Plan CRUD functions
+export async function listMealPlans(userId: number, limit: number, offset: number) {
+  const listResult = await query(
+    `SELECT id, user_id, name, description, created_at, updated_at
+     FROM meal_plans
+     WHERE user_id = $1
+     ORDER BY created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [userId, limit, offset]
+  );
+
+  const countResult = await query(
+    `SELECT COUNT(*) FROM meal_plans WHERE user_id = $1`,
+    [userId]
+  );
+
+  return {
+    results: listResult.rows,
+    total: parseInt(countResult.rows[0].count)
+  };
+}
+
+export async function getMealPlanById(id: number) {
+  const result = await query(
+    `SELECT id, user_id, name, description, created_at, updated_at
+     FROM meal_plans WHERE id = $1`,
+    [id]
+  );
+  return result.rowCount === 0 ? null : result.rows[0];
+}
+
+export async function createMealPlan(
+  user_id: number,
+  name: string,
+  description: string | null
+) {
+  const result = await query(
+    `INSERT INTO meal_plans (user_id, name, description)
+     VALUES ($1, $2, $3)
+     RETURNING id, user_id, name, description, created_at, updated_at`,
+    [user_id, name, description]
+  );
+  return result.rows[0];
+}
+
+export async function updateMealPlan(
+  id: number,
+  name: string | null,
+  description: string | null
+) {
+  const result = await query(
+    `UPDATE meal_plans
+     SET
+         name = COALESCE($2, name),
+         description = COALESCE($3, description),
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, user_id, name, description, created_at, updated_at`,
+    [id, name, description]
+  );
+  return result.rowCount === 0 ? null : result.rows[0];
+}
+
+export async function deleteMealPlan(id: number) {
+  const result = await query(`DELETE FROM meal_plans WHERE id = $1 RETURNING id`, [id]);
+  return result.rowCount !== 0;
+}
+
+// Meal Plan Recipe functions
+export async function addRecipeToMealPlan(
+  meal_plan_id: number,
+  recipe_id: number,
+  quantity: number = 1.0
+) {
+  const result = await query(
+    `INSERT INTO meal_plan_recipes (meal_plan_id, recipe_id, quantity)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (meal_plan_id, recipe_id) DO UPDATE SET
+         quantity = $3,
+         updated_at = NOW()
+     RETURNING id, meal_plan_id, recipe_id, quantity, created_at, updated_at`,
+    [meal_plan_id, recipe_id, quantity]
+  );
+  return result.rows[0];
+}
+
+export async function updateMealPlanRecipeQuantity(
+  meal_plan_id: number,
+  recipe_id: number,
+  quantity: number
+) {
+  const result = await query(
+    `UPDATE meal_plan_recipes
+     SET quantity = $3, updated_at = NOW()
+     WHERE meal_plan_id = $1 AND recipe_id = $2
+     RETURNING id, meal_plan_id, recipe_id, quantity, created_at, updated_at`,
+    [meal_plan_id, recipe_id, quantity]
+  );
+  return result.rowCount === 0 ? null : result.rows[0];
+}
+
+export async function removeRecipeFromMealPlan(meal_plan_id: number, recipe_id: number) {
+  const result = await query(
+    `DELETE FROM meal_plan_recipes WHERE meal_plan_id = $1 AND recipe_id = $2 RETURNING id`,
+    [meal_plan_id, recipe_id]
+  );
+  return result.rowCount !== 0;
+}
+
+export async function getMealPlanRecipes(meal_plan_id: number) {
+  const result = await query(
+    `SELECT mpr.id, mpr.meal_plan_id, mpr.recipe_id, mpr.quantity, mpr.created_at, mpr.updated_at,
+            r.name as recipe_name, r.description as recipe_description
+     FROM meal_plan_recipes mpr
+     JOIN recipes r ON mpr.recipe_id = r.id
+     WHERE mpr.meal_plan_id = $1
+     ORDER BY mpr.id`,
+    [meal_plan_id]
+  );
+  return result.rows;
+}
+
+// Calculate meal plan nutrient totals
+export async function calculateMealPlanNutrients(meal_plan_id: number) {
+  // Get all recipes in the meal plan with their quantities
+  // For each recipe, get all ingredients with their gram weights
+  // For each ingredient, get nutrients from the food
+  // Scale nutrients: (nutrient.amount / 100) * ingredient.gram_weight * recipe.quantity
+  // Sum all nutrients by nutrient_id
+  const result = await query(
+    `SELECT 
+       n.id,
+       n.name,
+       n.unit_name,
+       n.rank,
+       n.number,
+       SUM((fn.amount / 100.0) * i.gram_weight * mpr.quantity) as total_amount
+     FROM meal_plan_recipes mpr
+     JOIN ingredients i ON mpr.recipe_id = i.recipe_id
+     JOIN foods f ON i.food_id = f.id
+     JOIN food_nutrients fn ON f.id = fn.food_id
+     JOIN nutrients n ON fn.nutrient_id = n.id
+     WHERE mpr.meal_plan_id = $1
+       AND n.number = ANY($2::varchar[])
+     GROUP BY n.id, n.name, n.unit_name, n.rank, n.number
+     ORDER BY array_position($2::varchar[], n.number)`,
+    [meal_plan_id, DISPLAY_NUTRIENT_NUMBERS]
+  );
+
+  return result.rows.map(row => ({
+    id: row.id,
+    name: row.name,
+    unit: row.unit_name,
+    amount: parseFloat(row.total_amount),
+    rank: row.rank,
+  }));
+}
+
+// Calculate meal plan calorie density
+export async function calculateMealPlanCalorieDensity(meal_plan_id: number): Promise<number | null> {
+  // Calculate weighted average of recipe calorie densities based on recipe quantities
+  // First, get calorie density for each recipe
+  // Then calculate weighted average: sum(calorie_density * total_gram_weight * quantity) / sum(total_gram_weight * quantity)
+  const result = await query(
+    `SELECT
+       CASE
+         WHEN SUM(recipe_total_weight * mpr.quantity) > 0 THEN
+           SUM(recipe_calorie_density * recipe_total_weight * mpr.quantity) / SUM(recipe_total_weight * mpr.quantity)
+         ELSE 0
+       END as calorie_density
+     FROM meal_plan_recipes mpr
+     JOIN (
+       SELECT 
+         r.id as recipe_id,
+         COALESCE(SUM(i.gram_weight), 0) as recipe_total_weight,
+         CASE
+           WHEN SUM(i.gram_weight) > 0 THEN
+             SUM(f.calorie_density * i.gram_weight) / SUM(i.gram_weight)
+           ELSE NULL
+         END as recipe_calorie_density
+       FROM recipes r
+       LEFT JOIN ingredients i ON r.id = i.recipe_id
+       LEFT JOIN foods f ON i.food_id = f.id AND f.calorie_density IS NOT NULL
+       GROUP BY r.id
+     ) recipe_stats ON mpr.recipe_id = recipe_stats.recipe_id
+     WHERE mpr.meal_plan_id = $1
+       AND recipe_stats.recipe_calorie_density IS NOT NULL`,
+    [meal_plan_id]
+  );
+  return result.rows[0]?.calorie_density ?? null;
+}
