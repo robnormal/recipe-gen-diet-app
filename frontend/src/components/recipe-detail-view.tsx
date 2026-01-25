@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useState, useEffect } from 'react';
 import {
   FoodCategory,
   FoodPortion,
@@ -83,6 +83,9 @@ interface RecipeDetailViewProps {
 }
 
 export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewProps) {
+  // Local state for ingredient amount input to allow normal editing
+  const [localAmountValue, setLocalAmountValue] = useState<string>('');
+
   const {
     selectedRecipe,
     isLoadingRecipe,
@@ -145,6 +148,41 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
   } = actions;
 
   const { getIngredientQuantity, getIngredientUnit } = helpers;
+
+  // Sync local input value when editing starts or measurement type changes
+  useEffect(() => {
+    if (editingIngredientId !== null) {
+      const value = editSelectedMeasurementType === 'grams'
+        ? editIngredientData.gram_weight
+        : editIngredientData.quantity || '';
+      setLocalAmountValue(value);
+    } else {
+      setLocalAmountValue('');
+    }
+  }, [editingIngredientId, editSelectedMeasurementType, editIngredientData.gram_weight, editIngredientData.quantity]);
+
+  // Update parent state from local input value
+  const updateParentState = () => {
+    if (editSelectedMeasurementType === 'grams') {
+      setEditIngredientData({ ...editIngredientData, gram_weight: localAmountValue });
+    } else {
+      setEditIngredientData({ ...editIngredientData, quantity: localAmountValue });
+    }
+  };
+
+  // Handle blur - update parent state
+  const handleAmountBlur = () => {
+    updateParentState();
+  };
+
+  // Handle Enter key - update parent state
+  const handleAmountKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      updateParentState();
+      e.currentTarget.blur();
+    }
+  };
 
   if (!selectedRecipe) {
     return null;
@@ -246,18 +284,10 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
                             type="number"
                             step="0.1"
                             min="0"
-                            value={
-                              editSelectedMeasurementType === 'grams'
-                                ? editIngredientData.gram_weight
-                                : editIngredientData.quantity || ''
-                            }
-                            onChange={(e) => {
-                              if (editSelectedMeasurementType === 'grams') {
-                                setEditIngredientData({ ...editIngredientData, gram_weight: e.target.value });
-                              } else {
-                                setEditIngredientData({ ...editIngredientData, quantity: e.target.value });
-                              }
-                            }}
+                            value={localAmountValue}
+                            onChange={(e) => setLocalAmountValue(e.target.value)}
+                            onBlur={handleAmountBlur}
+                            onKeyDown={handleAmountKeyDown}
                             className="form-input inline-input"
                             placeholder="0"
                             required
