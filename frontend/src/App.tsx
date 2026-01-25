@@ -259,66 +259,99 @@ function App() {
         />
       ) : view === 'detail' && recipeDetailState.selectedRecipe ? (
         <RecipeDetailView
-          state={{
-            selectedRecipe: recipeDetailState.selectedRecipe,
-            isLoadingRecipe: recipeDetailState.isLoadingRecipe,
-            recipeUpdateError: recipeDetailState.recipeUpdateError,
-            recipeUpdateSuccess: recipeDetailState.recipeUpdateSuccess,
-            isUpdatingRecipe: recipeDetailState.isUpdatingRecipe,
-            ingredients,
-            isLoadingIngredients,
-            ingredientError,
-            ingredientSearchQuery: searchState.ingredientSearchQuery,
-            ingredientSearchResults: searchState.ingredientSearchResults,
-            isSearchingIngredient: searchState.isSearchingIngredient,
-            ingredientSearchError: searchState.ingredientSearchError,
-            newIngredient: newIngredientState.newIngredient,
-            isCreatingIngredient: newIngredientState.isCreatingIngredient,
-            ingredientCreateError: newIngredientState.ingredientCreateError,
-            recipeFormData,
-            availablePortions: newIngredientState.availablePortions,
-            isLoadingPortions: newIngredientState.isLoadingPortions,
-            portionsError: newIngredientState.portionsError,
-            selectedMeasurementType: newIngredientState.selectedMeasurementType,
-            selectedPortionId: newIngredientState.selectedPortionId,
-            editAvailablePortions: editIngredientState.editAvailablePortions,
-            isLoadingEditPortions: editIngredientState.isLoadingEditPortions,
-            editPortionsError: editIngredientState.editPortionsError,
-            editSelectedMeasurementType: editIngredientState.editSelectedMeasurementType,
-            editSelectedPortionId: editIngredientState.editSelectedPortionId,
-            editingIngredientId: editIngredientState.editingIngredientId,
-            editIngredientData: editIngredientState.editIngredientData,
-            isUpdatingIngredient: editIngredientState.isUpdatingIngredient,
-            ingredientUpdateError: editIngredientState.ingredientUpdateError,
-            foodCategories: categoryState.foodCategories,
-            isLoadingCategories: categoryState.isLoadingCategories,
-            categoriesError: categoryState.categoriesError,
-            selectedCategories: categoryState.selectedCategories,
+          recipe={{
+            data: recipeDetailState.selectedRecipe,
+            isLoading: recipeDetailState.isLoadingRecipe,
+            formData: recipeFormData,
+            updateState: {
+              isUpdating: recipeDetailState.isUpdatingRecipe,
+              error: recipeDetailState.recipeUpdateError,
+              success: recipeDetailState.recipeUpdateSuccess,
+            },
+            actions: {
+              onUpdate: detailHandlers.onUpdateRecipe,
+              setFormData: setRecipeFormData,
+              onBack: () => navigate('list'),
+            },
           }}
-          actions={{
-            onBack: () => navigate('list'),
-            onUpdateRecipe: detailHandlers.onUpdateRecipe,
-            onIngredientSearch: search,
-            onSelectFoodForIngredient: ingredientHandlers.onSelectFoodForIngredient,
-            onViewFoodDetails: (foodId: number) => navigate('food', foodId),
-            onAddIngredient: ingredientHandlers.onAddIngredient,
-            onStartEditIngredient: ingredientHandlers.onStartEditIngredient,
-            onCancelEditIngredient: ingredientHandlers.onCancelEditIngredient,
-            onUpdateIngredient: ingredientHandlers.onUpdateIngredient,
-            onDeleteIngredient: detailHandlers.onDeleteIngredient,
-            setIngredientSearchQuery: setQuery,
-            setSelectedCategories: categoryState.setSelectedCategories,
-            setNewIngredient: newIngredientState.setNewIngredient,
-            setSelectedMeasurementType: newIngredientState.setSelectedMeasurementType,
-            setSelectedPortionId: newIngredientState.setSelectedPortionId,
-            resetNewIngredientForm: resetFunctions.resetNewIngredientForm,
-            setEditIngredientData: editIngredientState.setEditIngredientData,
-            setEditSelectedMeasurementType: editIngredientState.setEditSelectedMeasurementType,
-            setEditSelectedPortionId: editIngredientState.setEditSelectedPortionId,
-            setIngredientCreateError: newIngredientState.setIngredientCreateError,
-            setRecipeFormData,
+          ingredients={{
+            list: {
+              items: ingredients,
+              isLoading: isLoadingIngredients,
+              error: ingredientError,
+            },
+            helpers: {
+              getQuantity: helpers.getIngredientQuantity,
+              getUnit: helpers.getIngredientUnit,
+            },
+            actions: {
+              onViewFoodDetails: (foodId: number) => navigate('food', foodId),
+            },
           }}
-          helpers={helpers}
+          ingredientEdit={{
+            state: {
+              editingId: editIngredientState.editingIngredientId,
+              formData: editIngredientState.editIngredientData,
+              measurementType: editIngredientState.editSelectedMeasurementType,
+              portionId: editIngredientState.editSelectedPortionId,
+              portions: {
+                items: editIngredientState.editAvailablePortions,
+                isLoading: editIngredientState.isLoadingEditPortions,
+                error: editIngredientState.editPortionsError,
+              },
+              isUpdating: editIngredientState.isUpdatingIngredient,
+              error: editIngredientState.ingredientUpdateError,
+            },
+            actions: {
+              setFormData: editIngredientState.setEditIngredientData,
+              setMeasurementType: editIngredientState.setEditSelectedMeasurementType,
+              setPortionId: editIngredientState.setEditSelectedPortionId,
+              onStart: ingredientHandlers.onStartEditIngredient,
+              onCancel: ingredientHandlers.onCancelEditIngredient,
+              onUpdate: ingredientHandlers.onUpdateIngredient,
+              onDelete: detailHandlers.onDeleteIngredient,
+            },
+          }}
+          ingredientSearch={{
+            query: searchState.ingredientSearchQuery,
+            results: searchState.ingredientSearchResults,
+            isLoading: searchState.isSearchingIngredient,
+            error: searchState.ingredientSearchError,
+            categories: {
+              items: categoryState.foodCategories,
+              isLoading: categoryState.isLoadingCategories,
+              error: categoryState.categoriesError,
+              selected: categoryState.selectedCategories,
+            },
+            actions: {
+              setQuery,
+              onSearch: search,
+              onSelectFood: ingredientHandlers.onSelectFoodForIngredient,
+              setSelectedCategories: categoryState.setSelectedCategories,
+            },
+          }}
+          newIngredient={{
+            formData: newIngredientState.newIngredient,
+            isCreating: newIngredientState.isCreatingIngredient,
+            error: newIngredientState.ingredientCreateError,
+            measurement: {
+              type: newIngredientState.selectedMeasurementType,
+              portionId: newIngredientState.selectedPortionId,
+              portions: {
+                items: newIngredientState.availablePortions,
+                isLoading: newIngredientState.isLoadingPortions,
+                error: newIngredientState.portionsError,
+              },
+            },
+            actions: {
+              setFormData: newIngredientState.setNewIngredient,
+              setError: newIngredientState.setIngredientCreateError,
+              setMeasurementType: newIngredientState.setSelectedMeasurementType,
+              setPortionId: newIngredientState.setSelectedPortionId,
+              onAdd: ingredientHandlers.onAddIngredient,
+              onReset: resetFunctions.resetNewIngredientForm,
+            },
+          }}
         />
       ) : (
         <>

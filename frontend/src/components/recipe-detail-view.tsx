@@ -16,145 +16,207 @@ import { IngredientSearchSection } from './ingredient-search-section';
 import { NewIngredientForm } from './new-ingredient-form';
 import { RecipeEditor } from './recipe-editor';
 
-interface RecipeDetailState {
-  selectedRecipe: Recipe | null;
-  isLoadingRecipe: boolean;
-  recipeUpdateError: string | null;
-  recipeUpdateSuccess: string | null;
-  isUpdatingRecipe: boolean;
-  ingredients: IngredientWithFood[];
-  isLoadingIngredients: boolean;
-  ingredientError: string | null;
-  ingredientSearchQuery: string;
-  ingredientSearchResults: FoodResult[];
-  isSearchingIngredient: boolean;
-  ingredientSearchError: string | null;
-  newIngredient: IngredientFormState;
-  isCreatingIngredient: boolean;
-  ingredientCreateError: string | null;
-  recipeFormData: RecipeFormData;
-  availablePortions: FoodPortion[];
-  isLoadingPortions: boolean;
-  portionsError: string | null;
-  selectedMeasurementType: MeasurementType;
-  selectedPortionId: number | null;
-  editAvailablePortions: FoodPortion[];
-  isLoadingEditPortions: boolean;
-  editPortionsError: string | null;
-  editSelectedMeasurementType: MeasurementType;
-  editSelectedPortionId: number | null;
-  editingIngredientId: number | null;
-  editIngredientData: IngredientFormState;
-  isUpdatingIngredient: boolean;
-  ingredientUpdateError: string | null;
-  foodCategories: FoodCategory[];
-  isLoadingCategories: boolean;
-  categoriesError: string | null;
-  selectedCategories: number[];
-}
-
-interface RecipeDetailActions {
-  onBack: () => void;
-  onUpdateRecipe: (e: React.FormEvent<HTMLFormElement>) => void;
-  onIngredientSearch: (e: React.FormEvent<HTMLFormElement>) => void;
-  onSelectFoodForIngredient: (food: FoodResult) => void;
-  onViewFoodDetails?: (foodId: number) => void;
-  onAddIngredient: (e: React.FormEvent<HTMLFormElement>) => void;
-  onStartEditIngredient: (ingredient: IngredientWithFood) => void;
-  onCancelEditIngredient: () => void;
-  onUpdateIngredient: () => void;
-  onDeleteIngredient: (ingredientId: number) => Promise<void>;
-  setIngredientSearchQuery: Dispatch<SetStateAction<string>>;
-  setSelectedCategories: Dispatch<SetStateAction<number[]>>;
-  setNewIngredient: Dispatch<SetStateAction<IngredientFormState>>;
-  setSelectedMeasurementType: Dispatch<SetStateAction<MeasurementType>>;
-  setSelectedPortionId: Dispatch<SetStateAction<number | null>>;
-  resetNewIngredientForm: () => void;
-  setEditIngredientData: Dispatch<SetStateAction<IngredientFormState>>;
-  setEditSelectedMeasurementType: Dispatch<SetStateAction<MeasurementType>>;
-  setEditSelectedPortionId: Dispatch<SetStateAction<number | null>>;
-  setIngredientCreateError: Dispatch<SetStateAction<string | null>>;
-  setRecipeFormData: Dispatch<SetStateAction<RecipeFormData>>;
-}
-
-interface RecipeDetailHelpers {
-  getIngredientQuantity: (ingredient: IngredientWithFood) => string;
-  getIngredientUnit: (ingredient: IngredientWithFood) => string;
-}
-
 interface RecipeDetailViewProps {
-  state: RecipeDetailState;
-  actions: RecipeDetailActions;
-  helpers: RecipeDetailHelpers;
+  recipe: {
+    data: Recipe | null;
+    isLoading: boolean;
+    formData: RecipeFormData;
+    updateState: {
+      isUpdating: boolean;
+      error: string | null;
+      success: string | null;
+    };
+    actions: {
+      onUpdate: (e: React.FormEvent<HTMLFormElement>) => void;
+      setFormData: Dispatch<SetStateAction<RecipeFormData>>;
+      onBack: () => void;
+    };
+  };
+  ingredients: {
+    list: {
+      items: IngredientWithFood[];
+      isLoading: boolean;
+      error: string | null;
+    };
+    helpers: {
+      getQuantity: (ingredient: IngredientWithFood) => string;
+      getUnit: (ingredient: IngredientWithFood) => string;
+    };
+    actions: {
+      onViewFoodDetails?: (foodId: number) => void;
+    };
+  };
+  ingredientEdit: {
+    state: {
+      editingId: number | null;
+      formData: IngredientFormState;
+      measurementType: MeasurementType;
+      portionId: number | null;
+      portions: {
+        items: FoodPortion[];
+        isLoading: boolean;
+        error: string | null;
+      };
+      isUpdating: boolean;
+      error: string | null;
+    };
+    actions: {
+      setFormData: Dispatch<SetStateAction<IngredientFormState>>;
+      setMeasurementType: Dispatch<SetStateAction<MeasurementType>>;
+      setPortionId: Dispatch<SetStateAction<number | null>>;
+      onStart: (ingredient: IngredientWithFood) => void;
+      onCancel: () => void;
+      onUpdate: () => void;
+      onDelete: (ingredientId: number) => Promise<void>;
+    };
+  };
+  ingredientSearch: {
+    query: string;
+    results: FoodResult[];
+    isLoading: boolean;
+    error: string | null;
+    categories: {
+      items: FoodCategory[];
+      isLoading: boolean;
+      error: string | null;
+      selected: number[];
+    };
+    actions: {
+      setQuery: Dispatch<SetStateAction<string>>;
+      onSearch: (e: React.FormEvent<HTMLFormElement>) => void;
+      onSelectFood: (food: FoodResult) => void;
+      setSelectedCategories: Dispatch<SetStateAction<number[]>>;
+    };
+  };
+  newIngredient: {
+    formData: IngredientFormState;
+    isCreating: boolean;
+    error: string | null;
+    measurement: {
+      type: MeasurementType;
+      portionId: number | null;
+      portions: {
+        items: FoodPortion[];
+        isLoading: boolean;
+        error: string | null;
+      };
+    };
+    actions: {
+      setFormData: Dispatch<SetStateAction<IngredientFormState>>;
+      setError: Dispatch<SetStateAction<string | null>>;
+      setMeasurementType: Dispatch<SetStateAction<MeasurementType>>;
+      setPortionId: Dispatch<SetStateAction<number | null>>;
+      onAdd: (e: React.FormEvent<HTMLFormElement>) => void;
+      onReset: () => void;
+    };
+  };
 }
 
-export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewProps) {
-  const {
-    selectedRecipe,
-    isLoadingRecipe,
-    recipeUpdateError,
-    recipeUpdateSuccess,
-    isUpdatingRecipe,
-    ingredients,
-    isLoadingIngredients,
-    ingredientError,
-    ingredientSearchQuery,
-    ingredientSearchResults,
-    isSearchingIngredient,
-    ingredientSearchError,
-    newIngredient,
-    isCreatingIngredient,
-    ingredientCreateError,
-    recipeFormData,
-    availablePortions,
-    isLoadingPortions,
-    portionsError,
-    selectedMeasurementType,
-    selectedPortionId,
-    editAvailablePortions,
-    isLoadingEditPortions,
-    editPortionsError,
-    editSelectedMeasurementType,
-    editSelectedPortionId,
-    editingIngredientId,
-    editIngredientData,
-    isUpdatingIngredient: isSavingIngredient,
-    ingredientUpdateError,
-    foodCategories,
-    isLoadingCategories,
-    categoriesError,
-    selectedCategories,
-  } = state;
-
-  const {
-    onBack,
-    onUpdateRecipe,
-    onIngredientSearch,
-    onSelectFoodForIngredient,
-    onViewFoodDetails,
-    onAddIngredient,
-    onStartEditIngredient,
-    onCancelEditIngredient,
-    onUpdateIngredient,
-    onDeleteIngredient,
-    setIngredientSearchQuery,
-    setSelectedCategories,
-    setNewIngredient,
-    setSelectedMeasurementType,
-    setSelectedPortionId,
-    resetNewIngredientForm,
-    setEditIngredientData,
-    setEditSelectedMeasurementType,
-    setEditSelectedPortionId,
-    setIngredientCreateError,
-    setRecipeFormData,
-  } = actions;
-
-  const { getIngredientQuantity, getIngredientUnit } = helpers;
-
-  if (!selectedRecipe) {
+export function RecipeDetailView({
+  recipe,
+  ingredients,
+  ingredientEdit,
+  ingredientSearch,
+  newIngredient,
+}: RecipeDetailViewProps) {
+  // Early return if no recipe data
+  if (!recipe.data) {
     return null;
   }
+
+  // Destructure for easier access
+  const {
+    data: selectedRecipe,
+    isLoading: isLoadingRecipe,
+    formData: recipeFormData,
+    updateState: {
+      isUpdating: isUpdatingRecipe,
+      error: recipeUpdateError,
+      success: recipeUpdateSuccess,
+    },
+    actions: {
+      onUpdate: onUpdateRecipe,
+      setFormData: setRecipeFormData,
+      onBack,
+    },
+  } = recipe;
+
+  const {
+    list: {
+      items: ingredientsList,
+      isLoading: isLoadingIngredients,
+      error: ingredientError,
+    },
+    helpers: { getQuantity: getIngredientQuantity, getUnit: getIngredientUnit },
+    actions: { onViewFoodDetails },
+  } = ingredients;
+
+  const {
+    state: {
+      editingId: editingIngredientId,
+      formData: editIngredientData,
+      measurementType: editSelectedMeasurementType,
+      portionId: editSelectedPortionId,
+      portions: {
+        items: editAvailablePortions,
+        isLoading: isLoadingEditPortions,
+        error: editPortionsError,
+      },
+      isUpdating: isSavingIngredient,
+      error: ingredientUpdateError,
+    },
+    actions: {
+      setFormData: setEditIngredientData,
+      setMeasurementType: setEditSelectedMeasurementType,
+      setPortionId: setEditSelectedPortionId,
+      onStart: onStartEditIngredient,
+      onCancel: onCancelEditIngredient,
+      onUpdate: onUpdateIngredient,
+      onDelete: onDeleteIngredient,
+    },
+  } = ingredientEdit;
+
+  const {
+    query: ingredientSearchQuery,
+    results: ingredientSearchResults,
+    isLoading: isSearchingIngredient,
+    error: ingredientSearchError,
+    categories: {
+      items: foodCategories,
+      isLoading: isLoadingCategories,
+      error: categoriesError,
+      selected: selectedCategories,
+    },
+    actions: {
+      setQuery: setIngredientSearchQuery,
+      onSearch: onIngredientSearch,
+      onSelectFood: onSelectFoodForIngredient,
+      setSelectedCategories,
+    },
+  } = ingredientSearch;
+
+  const {
+    formData: newIngredientFormData,
+    isCreating: isCreatingIngredient,
+    error: ingredientCreateError,
+    measurement: {
+      type: selectedMeasurementType,
+      portionId: selectedPortionId,
+      portions: {
+        items: availablePortions,
+        isLoading: isLoadingPortions,
+        error: portionsError,
+      },
+    },
+    actions: {
+      setFormData: setNewIngredient,
+      setError: setIngredientCreateError,
+      setMeasurementType: setSelectedMeasurementType,
+      setPortionId: setSelectedPortionId,
+      onAdd: onAddIngredient,
+      onReset: resetNewIngredientForm,
+    },
+  } = newIngredient;
 
   return (
     <div className="recipe-detail-container">
@@ -167,7 +229,7 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
           <div className="ingredients-section">
             <h3>Ingredients</h3>
             <IngredientsTable
-              ingredients={ingredients}
+              ingredients={ingredientsList}
               isLoadingIngredients={isLoadingIngredients}
               ingredientError={ingredientError}
               editingIngredientId={editingIngredientId}
@@ -194,7 +256,7 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
             <div className="add-ingredient-section">
               <h4>Add Ingredient</h4>
 
-              {!newIngredient.food_id ? (
+              {!newIngredientFormData.food_id ? (
                 <IngredientSearchSection
                   ingredientSearchQuery={ingredientSearchQuery}
                   setIngredientSearchQuery={setIngredientSearchQuery}
@@ -212,7 +274,7 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
                 />
               ) : (
                 <NewIngredientForm
-                  newIngredient={newIngredient}
+                  newIngredient={newIngredientFormData}
                   setNewIngredient={setNewIngredient}
                   onAddIngredient={onAddIngredient}
                   isCreatingIngredient={isCreatingIngredient}
