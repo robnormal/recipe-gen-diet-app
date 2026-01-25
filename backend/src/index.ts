@@ -18,6 +18,7 @@ import {
   updateIngredient,
   deleteIngredient,
   calculateRecipeCalorieDensity,
+  calculateRecipeNutrients,
   listMealPlans,
   getMealPlanById,
   createMealPlan,
@@ -371,7 +372,8 @@ app.get('/api/recipes/:id', requireAuth, asyncHandler(async (req, res) => {
     return sendError(res, 404, 'Recipe not found');
   }
   const calorie_density = await calculateRecipeCalorieDensity(recipe.id);
-  res.json({ ...recipe, calorie_density });
+  const nutrients = await calculateRecipeNutrients(recipe.id);
+  res.json({ ...recipe, calorie_density, nutrients });
 }));
 
 app.post('/api/recipes', requireAuth, async (req, res) => {

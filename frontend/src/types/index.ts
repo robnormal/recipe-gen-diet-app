@@ -42,6 +42,7 @@ export interface Recipe {
   servings: number | null;
   total_time_minutes: number | null;
   calorie_density: number | null;
+  nutrients?: FoodNutrient[];
   created_at: string;
   updated_at: string;
 }

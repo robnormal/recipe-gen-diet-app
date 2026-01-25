@@ -530,6 +530,48 @@ export async function getMealPlanRecipes(meal_plan_id: number) {
   }));
 }
 
+// Calculate recipe nutrient totals
+export async function calculateRecipeNutrients(recipe_id: number) {
+  // Get all ingredients for the recipe with their gram weights
+  // For each ingredient, get nutrients from the food
+  // Scale nutrients: (nutrient.amount / 100) * ingredient.gram_weight
+  // Sum all nutrients by nutrient_id
+  const result = await query(
+    `SELECT 
+       n.id,
+       n.name,
+       n.unit_name,
+       n.rank,
+       n.number,
+       SUM((fn.amount / 100.0) * i.gram_weight) as total_amount,
+       rda.adult_rda_value,
+       CASE
+         WHEN rda.adult_rda_value IS NOT NULL AND rda.adult_rda_value > 0 THEN
+           (SUM((fn.amount / 100.0) * i.gram_weight) / rda.adult_rda_value * 100)
+         ELSE NULL
+       END as rda_percent
+     FROM ingredients i
+     JOIN foods f ON i.food_id = f.id
+     JOIN food_nutrients fn ON f.id = fn.food_id
+     JOIN nutrients n ON fn.nutrient_id = n.id
+     LEFT JOIN nutrient_rdas rda ON n.number = rda.nutrient_number
+     WHERE i.recipe_id = $1
+       AND n.number = ANY($2::varchar[])
+     GROUP BY n.id, n.name, n.unit_name, n.rank, n.number, rda.adult_rda_value
+     ORDER BY array_position($2::varchar[], n.number)`,
+    [recipe_id, DISPLAY_NUTRIENT_NUMBERS]
+  );
+
+  return result.rows.map(row => ({
+    id: row.id,
+    name: row.name,
+    unit: row.unit_name,
+    amount: parseFloat(row.total_amount),
+    rank: row.rank,
+    rda_percent: row.rda_percent !== null ? parseFloat(row.rda_percent) : null,
+  }));
+}
+
 // Calculate meal plan nutrient totals
 export async function calculateMealPlanNutrients(meal_plan_id: number) {
   // Get all recipes in the meal plan with their quantities
