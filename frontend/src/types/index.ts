@@ -84,6 +84,7 @@ export interface FoodPortion {
 export interface FoodCategory {
   id: number;
   description: string;
+  emoji: string | null;
 }
 
 export interface RecipeFormData {

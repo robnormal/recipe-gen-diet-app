@@ -408,7 +408,7 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
               {!newIngredient.food_id ? (
                 <div className="ingredient-search-container">
                   <div className="category-filter-container">
-                    <label htmlFor="ingredient-category-filter" className="category-filter-label">
+                    <label className="category-filter-label">
                       Filter by Category:
                     </label>
                     {isLoadingCategories ? (
@@ -417,28 +417,46 @@ export function RecipeDetailView({ state, actions, helpers }: RecipeDetailViewPr
                       <p className="error-message">{categoriesError}</p>
                     ) : foodCategories.length > 0 ? (
                       <div className="category-selector">
-                        <select
-                          id="ingredient-category-filter"
-                          multiple
-                          value={selectedCategories.map(String)}
-                          onChange={(e) => {
-                            const selected = Array.from(e.target.selectedOptions, (option) => parseInt(option.value, 10));
-                            setSelectedCategories(selected);
-                          }}
-                          className="category-multiselect"
-                          size={Math.min(foodCategories.length, 8)}
-                        >
-                          {foodCategories.map((category) => (
-                            <option key={category.id} value={category.id.toString()}>
-                              {category.description}
-                            </option>
-                          ))}
-                        </select>
-                        {selectedCategories.length > 0 && (
-                          <button type="button" onClick={() => setSelectedCategories([])} className="clear-categories-button">
-                            Clear All
+                        <div className="category-select-all-buttons">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCategories(foodCategories.map((cat) => cat.id))}
+                            className="select-all-button"
+                          >
+                            Select All
                           </button>
-                        )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCategories([])}
+                            className="deselect-all-button"
+                          >
+                            Deselect All
+                          </button>
+                        </div>
+                        <div className="category-checkbox-list">
+                          {foodCategories.map((category) => (
+                            <div key={category.id} className="category-checkbox-item">
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedCategories.includes(category.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedCategories([...selectedCategories, category.id]);
+                                    } else {
+                                      setSelectedCategories(selectedCategories.filter((id) => id !== category.id));
+                                    }
+                                  }}
+                                  className="category-checkbox"
+                                />
+                                <span>
+                                  {category.emoji && <span className="category-emoji">{category.emoji}</span>}
+                                  {category.description}
+                                </span>
+                              </label>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ) : null}
                   </div>

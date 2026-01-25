@@ -59,7 +59,7 @@ export async function searchFoods(words: string[], limit: number, offset: number
 // Food category functions
 export async function listFoodCategories() {
   const result = await query(
-    `SELECT id, description
+    `SELECT id, description, emoji
      FROM food_categories
      ORDER BY description`,
     []

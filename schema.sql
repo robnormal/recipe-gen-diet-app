@@ -6,6 +6,7 @@
 CREATE TABLE food_categories (
     id SERIAL PRIMARY KEY,
     description TEXT NOT NULL,
+    emoji VARCHAR(10),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
