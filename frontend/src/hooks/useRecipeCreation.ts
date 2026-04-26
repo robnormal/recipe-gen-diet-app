@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Recipe } from '../types';
-import { createIngredient as apiCreateIngredient, fetchRecipeDetails as apiFetchRecipeDetails } from '../services/api';
+import { createIngredient as apiCreateIngredient } from '../services/api';
 
 type View = 'list' | 'detail' | 'create' | 'generate';
 
@@ -225,4 +225,3 @@ export function useRecipeCreation(options: UseRecipeCreationOptions = {}) {
     },
   };
 }
-

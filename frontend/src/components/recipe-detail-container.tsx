@@ -2,6 +2,7 @@ import { Recipe } from '../types';
 import { useRecipeDetail } from '../hooks/useRecipeDetail';
 import { RecipeEditor } from './recipe-editor';
 import { IngredientManager } from './ingredient-manager';
+import { getTotalKcal } from '../utils/nutrients';
 
 interface RecipeDetailContainerProps {
   recipeId: number;
@@ -40,6 +41,8 @@ export function RecipeDetailContainer({
     return null;
   }
 
+  const totalKcal = getTotalKcal(selectedRecipe.nutrients ?? []);
+
   return (
     <div className="recipe-detail-container">
       <div className="recipe-detail-header">
@@ -48,9 +51,20 @@ export function RecipeDetailContainer({
           Back to Recipes
         </button>
       </div>
-      {selectedRecipe.calorie_density !== null && selectedRecipe.calorie_density !== undefined && (
-        <div className="recipe-calorie-density">
-          <strong>Calorie Density:</strong> {selectedRecipe.calorie_density.toFixed(1)} kcal/g
+      {(totalKcal !== null || selectedRecipe.calorie_density !== null) && (
+        <div className="recipe-stats-block">
+          {totalKcal !== null && (
+            <div className="stat-item">
+              <span className="stat-value">{Math.round(totalKcal)}</span>
+              <span className="stat-label">kcal total</span>
+            </div>
+          )}
+          {selectedRecipe.calorie_density !== null && selectedRecipe.calorie_density !== undefined && (
+            <div className="stat-item">
+              <span className="stat-value">{selectedRecipe.calorie_density.toFixed(1)}</span>
+              <span className="stat-label">kcal/g</span>
+            </div>
+          )}
         </div>
       )}
 

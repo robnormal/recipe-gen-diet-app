@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import { pool } from './db_connection';
 import fs from 'fs';
 import path from 'path';

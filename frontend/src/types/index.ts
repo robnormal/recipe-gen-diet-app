@@ -112,6 +112,7 @@ export interface FoodNutrient {
   amount: number;
   rank: number | null;
   rda_percent: number | null;
+  number?: string;
 }
 
 export interface FoodDetail {

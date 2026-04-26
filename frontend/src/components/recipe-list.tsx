@@ -32,6 +32,9 @@ export function RecipeList({ recipes, isLoadingRecipes, recipesError, onRecipeCl
                   </span>
                 )}
                 {recipe.total_time_minutes && <span className="recipe-time">{recipe.total_time_minutes} min</span>}
+                {recipe.calorie_density !== null && recipe.calorie_density !== undefined && (
+                  <span className="recipe-calorie-badge">{recipe.calorie_density.toFixed(1)} kcal/g</span>
+                )}
                 <span className="recipe-date">Created: {new Date(recipe.created_at).toLocaleDateString()}</span>
               </div>
             </li>
@@ -41,4 +44,3 @@ export function RecipeList({ recipes, isLoadingRecipes, recipesError, onRecipeCl
     </div>
   );
 }
-

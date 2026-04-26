@@ -356,7 +356,6 @@ function App() {
       ) : (
         <>
           <RecipeCreationForms
-            navigate={navigate}
             showRecipeForm={createState.showRecipeForm}
             setShowRecipeForm={createState.setShowRecipeForm}
             showGenerateForm={generateState.showGenerateForm}

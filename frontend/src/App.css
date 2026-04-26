@@ -386,11 +386,35 @@ p {
   text-align: left;
 }
 
-.recipe-calorie-density {
+.recipe-stats-block,
+.meal-plan-stats-block {
+  display: flex;
+  gap: 1.5rem;
   margin-bottom: 1rem;
-  text-align: left;
-  color: #34495e;
-  font-size: 1rem;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #f0f4f8;
+  border-radius: 8px;
+  padding: 0.5rem 1.25rem;
+  min-width: 80px;
+}
+
+.stat-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #2c3e50;
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #7f8c8d;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .back-button {
@@ -838,6 +862,14 @@ p {
   padding: 0.25rem 0.5rem;
   background-color: #ecf0f1;
   border-radius: 4px;
+}
+
+.recipe-calorie-badge {
+  font-size: 0.8rem;
+  color: #7f8c8d;
+  background: #ecf0f1;
+  border-radius: 12px;
+  padding: 0.1rem 0.5rem;
 }
 
 /* Login/Registration */

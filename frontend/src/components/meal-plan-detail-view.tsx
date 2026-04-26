@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MealPlanWithRecipes, Recipe, IngredientWithFood } from '../types';
 import { fetchIngredients } from '../services/api';
+import { getTotalKcal } from '../utils/nutrients';
 
 interface MealPlanDetailViewProps {
   mealPlan: MealPlanWithRecipes | null;
@@ -23,7 +24,6 @@ interface MealPlanDetailViewProps {
   onUpdateRecipeQuantity: (recipeId: number, quantity: number) => void;
   onRemoveRecipe: (recipeId: number) => void;
   availableRecipes?: Recipe[];
-  onRecipeSelect?: (recipe: Recipe) => void;
 }
 
 export function MealPlanDetailView({
@@ -47,7 +47,6 @@ export function MealPlanDetailView({
   onUpdateRecipeQuantity,
   onRemoveRecipe,
   availableRecipes = [],
-  onRecipeSelect,
 }: MealPlanDetailViewProps) {
   const [editingRecipeId, setEditingRecipeId] = useState<number | null>(null);
   const [editingQuantity, setEditingQuantity] = useState<string>('');
@@ -162,6 +161,8 @@ export function MealPlanDetailView({
     setSelectedRecipeWeight(null);
   };
 
+  const totalKcal = mealPlan ? getTotalKcal(mealPlan.nutrients) : null;
+
   return (
     <div className="meal-plan-detail-container">
       <div className="meal-plan-detail-header">
@@ -171,9 +172,20 @@ export function MealPlanDetailView({
         </button>
       </div>
 
-      {mealPlan?.calorie_density !== null && mealPlan?.calorie_density !== undefined && (
-        <div className="meal-plan-calorie-density">
-          <strong>Calorie Density:</strong> {mealPlan.calorie_density.toFixed(1)} kcal/g
+      {(totalKcal !== null || (mealPlan?.calorie_density !== null && mealPlan?.calorie_density !== undefined)) && (
+        <div className="meal-plan-stats-block">
+          {totalKcal !== null && (
+            <div className="stat-item">
+              <span className="stat-value">{Math.round(totalKcal)}</span>
+              <span className="stat-label">kcal total</span>
+            </div>
+          )}
+          {mealPlan?.calorie_density !== null && mealPlan?.calorie_density !== undefined && (
+            <div className="stat-item">
+              <span className="stat-value">{mealPlan.calorie_density.toFixed(1)}</span>
+              <span className="stat-label">kcal/g</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -234,6 +246,7 @@ export function MealPlanDetailView({
                     <th>Recipe Name</th>
                     <th>Quantity</th>
                     <th>Gram Weight</th>
+                    <th>Total kcal</th>
                     <th>Calorie Density</th>
                     <th>Actions</th>
                   </tr>
@@ -241,6 +254,9 @@ export function MealPlanDetailView({
                 <tbody>
                   {mealPlan?.recipes.map((mealPlanRecipe) => {
                     const totalGramWeight = mealPlanRecipe.recipe_total_weight * mealPlanRecipe.quantity;
+                    const rowKcal = mealPlanRecipe.recipe_calorie_density !== null
+                      ? mealPlanRecipe.recipe_calorie_density * totalGramWeight
+                      : null;
                     return (
                       <tr key={mealPlanRecipe.id}>
                         <td>{mealPlanRecipe.recipe_name}</td>
@@ -304,6 +320,7 @@ export function MealPlanDetailView({
                           )}
                         </td>
                         <td>{totalGramWeight.toFixed(1)} g</td>
+                        <td>{rowKcal !== null ? `${Math.round(rowKcal)} kcal` : 'N/A'}</td>
                         <td>
                           {mealPlanRecipe.recipe_calorie_density !== null
                             ? `${mealPlanRecipe.recipe_calorie_density.toFixed(1)} kcal/g`

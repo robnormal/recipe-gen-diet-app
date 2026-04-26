@@ -1,4 +1,5 @@
 import { Recipe } from '../types';
+import { getTotalKcal } from '../utils/nutrients';
 
 interface RecipeDetailHeaderProps {
   recipe: Recipe;
@@ -6,6 +7,8 @@ interface RecipeDetailHeaderProps {
 }
 
 export function RecipeDetailHeader({ recipe, onBack }: RecipeDetailHeaderProps) {
+  const totalKcal = getTotalKcal(recipe.nutrients ?? []);
+
   return (
     <>
       <div className="recipe-detail-header">
@@ -14,9 +17,20 @@ export function RecipeDetailHeader({ recipe, onBack }: RecipeDetailHeaderProps) 
           Back to Recipes
         </button>
       </div>
-      {recipe.calorie_density !== null && recipe.calorie_density !== undefined && (
-        <div className="recipe-calorie-density">
-          <strong>Calorie Density:</strong> {recipe.calorie_density.toFixed(1)} kcal/g
+      {(totalKcal !== null || recipe.calorie_density !== null) && (
+        <div className="recipe-stats-block">
+          {totalKcal !== null && (
+            <div className="stat-item">
+              <span className="stat-value">{Math.round(totalKcal)}</span>
+              <span className="stat-label">kcal total</span>
+            </div>
+          )}
+          {recipe.calorie_density !== null && recipe.calorie_density !== undefined && (
+            <div className="stat-item">
+              <span className="stat-value">{recipe.calorie_density.toFixed(1)}</span>
+              <span className="stat-label">kcal/g</span>
+            </div>
+          )}
         </div>
       )}
     </>

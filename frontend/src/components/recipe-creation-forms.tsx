@@ -1,9 +1,6 @@
 import { Dispatch, SetStateAction } from 'react';
 
-type View = 'list' | 'detail' | 'create' | 'generate';
-
 interface RecipeCreationFormsProps {
-  navigate?: (view: View, recipeId?: number | null) => void;
   showRecipeForm: boolean;
   setShowRecipeForm: Dispatch<SetStateAction<boolean>>;
   showGenerateForm: boolean;
@@ -27,7 +24,6 @@ interface RecipeCreationFormsProps {
 }
 
 export function RecipeCreationForms({
-  navigate,
   showRecipeForm,
   setShowRecipeForm,
   showGenerateForm,
@@ -149,4 +145,3 @@ export function RecipeCreationForms({
     </div>
   );
 }
-

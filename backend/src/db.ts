@@ -144,6 +144,7 @@ export async function getFoodDetailsWithNutrients(id: number) {
       unit: row.unit_name,
       amount: row.amount,
       rank: row.rank,
+      number: row.number,
       rda_percent: row.rda_percent !== null ? parseFloat(row.rda_percent) : null,
     })),
   };
@@ -210,9 +211,22 @@ export async function authenticateUser(email: string, password: string) {
 export async function listRecipes(userId: number, limit: number, offset: number) {
   const listResult = await query(
     `SELECT id, user_id, name, description, instructions, servings, total_time_minutes,
-            created_at, updated_at
-     FROM recipes
-     WHERE user_id = $1
+            created_at, updated_at, calorie_density
+     FROM (
+       SELECT
+         r.id, r.user_id, r.name, r.description, r.instructions, r.servings, r.total_time_minutes,
+         r.created_at, r.updated_at,
+         CASE
+           WHEN SUM(i.gram_weight) > 0 THEN
+             SUM(f.calorie_density * i.gram_weight) / SUM(i.gram_weight)
+           ELSE NULL
+         END as calorie_density
+       FROM recipes r
+       LEFT JOIN ingredients i ON r.id = i.recipe_id
+       LEFT JOIN foods f ON i.food_id = f.id AND f.calorie_density IS NOT NULL
+       WHERE r.user_id = $1
+       GROUP BY r.id
+     ) recipes_with_stats
      ORDER BY created_at DESC
      LIMIT $2 OFFSET $3`,
     [userId, limit, offset]
@@ -224,7 +238,10 @@ export async function listRecipes(userId: number, limit: number, offset: number)
   );
 
   return {
-    results: listResult.rows,
+    results: listResult.rows.map(row => ({
+      ...row,
+      calorie_density: row.calorie_density !== null ? parseFloat(row.calorie_density) : null,
+    })),
     total: parseInt(countResult.rows[0].count)
   };
 }
@@ -568,6 +585,7 @@ export async function calculateRecipeNutrients(recipe_id: number) {
     unit: row.unit_name,
     amount: parseFloat(row.total_amount),
     rank: row.rank,
+    number: row.number,
     rda_percent: row.rda_percent !== null ? parseFloat(row.rda_percent) : null,
   }));
 }
@@ -612,6 +630,7 @@ export async function calculateMealPlanNutrients(meal_plan_id: number) {
     unit: row.unit_name,
     amount: parseFloat(row.total_amount),
     rank: row.rank,
+    number: row.number,
     rda_percent: row.rda_percent !== null ? parseFloat(row.rda_percent) : null,
   }));
 }
