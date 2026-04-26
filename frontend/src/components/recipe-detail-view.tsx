@@ -1,5 +1,7 @@
 import { Dispatch, SetStateAction } from 'react';
 import {
+  RecipeEditableField,
+  RecipeEditableValue,
   FoodCategory,
   FoodPortion,
   FoodResult,
@@ -7,28 +9,23 @@ import {
   IngredientWithFood,
   MeasurementType,
   Recipe,
-  RecipeFormData,
 } from '../types';
 import { RecipeDetailHeader } from './recipe-detail-header';
 import { RecipeNutrientsTable } from './recipe-nutrients-table';
 import { IngredientsTable } from './ingredients-table';
 import { IngredientSearchSection } from './ingredient-search-section';
 import { NewIngredientForm } from './new-ingredient-form';
-import { RecipeEditor } from './recipe-editor';
 
 interface RecipeDetailViewProps {
   recipe: {
     data: Recipe | null;
     isLoading: boolean;
-    formData: RecipeFormData;
-    updateState: {
-      isUpdating: boolean;
-      error: string | null;
-      success: string | null;
-    };
+    instructionsDraft: string;
+    updateError: string | null;
     actions: {
-      onUpdate: (e: React.FormEvent<HTMLFormElement>) => void;
-      setFormData: Dispatch<SetStateAction<RecipeFormData>>;
+      onFieldSave: (field: RecipeEditableField, value: RecipeEditableValue) => Promise<void>;
+      setInstructionsDraft: Dispatch<SetStateAction<string>>;
+      onInstructionsBlur: () => Promise<void>;
       onBack: () => void;
     };
   };
@@ -128,15 +125,12 @@ export function RecipeDetailView({
   const {
     data: selectedRecipe,
     isLoading: isLoadingRecipe,
-    formData: recipeFormData,
-    updateState: {
-      isUpdating: isUpdatingRecipe,
-      error: recipeUpdateError,
-      success: recipeUpdateSuccess,
-    },
+    instructionsDraft,
+    updateError: recipeUpdateError,
     actions: {
-      onUpdate: onUpdateRecipe,
-      setFormData: setRecipeFormData,
+      onFieldSave,
+      setInstructionsDraft,
+      onInstructionsBlur,
       onBack,
     },
   } = recipe;
@@ -220,7 +214,7 @@ export function RecipeDetailView({
 
   return (
     <div className="recipe-detail-container">
-      <RecipeDetailHeader recipe={selectedRecipe} onBack={onBack} />
+      <RecipeDetailHeader recipe={selectedRecipe} onBack={onBack} onFieldSave={onFieldSave} />
 
       {isLoadingRecipe ? (
         <p className="loading-message">Loading recipe details...</p>
@@ -293,14 +287,21 @@ export function RecipeDetailView({
             </div>
           </div>
 
-          <RecipeEditor
-            formData={recipeFormData}
-            setFormData={setRecipeFormData}
-            onSubmit={onUpdateRecipe}
-            isUpdating={isUpdatingRecipe}
-            error={recipeUpdateError}
-            success={recipeUpdateSuccess}
-          />
+          <div className="recipe-instructions-section">
+            <label htmlFor="recipe-instructions" className="recipe-instructions-label">
+              Instructions
+            </label>
+            <textarea
+              id="recipe-instructions"
+              value={instructionsDraft}
+              onChange={(event) => setInstructionsDraft(event.target.value)}
+              onBlur={() => void onInstructionsBlur().catch(() => undefined)}
+              className="form-input recipe-instructions-textarea"
+              placeholder="Add recipe instructions"
+              rows={6}
+            />
+            {recipeUpdateError && <p className="error-message">{recipeUpdateError}</p>}
+          </div>
 
           {selectedRecipe.nutrients && selectedRecipe.nutrients.length > 0 && (
             <RecipeNutrientsTable nutrients={selectedRecipe.nutrients} />
@@ -310,4 +311,3 @@ export function RecipeDetailView({
     </div>
   );
 }
-

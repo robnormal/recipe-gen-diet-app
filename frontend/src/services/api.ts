@@ -9,6 +9,7 @@ import {
   MealPlanRecipe,
   MealPlanWithRecipes,
   Recipe,
+  RecipeUpdateData,
   RecipesResponse,
   User,
 } from '../types';
@@ -87,13 +88,7 @@ export async function fetchRecipeDetails(recipeId: number): Promise<Recipe> {
 
 export async function updateRecipeDetails(
   recipeId: number,
-  data: {
-    name?: string;
-    description?: string | null;
-    instructions?: string | null;
-    servings?: number | null;
-    total_time_minutes?: number | null;
-  }
+  data: RecipeUpdateData
 ): Promise<Recipe> {
   const response = await fetch(`/api/recipes/${recipeId}`, {
     method: 'PUT',
@@ -284,4 +279,3 @@ export async function removeRecipeFromMealPlan(mealPlanId: number, recipeId: num
     throw new ApiError(message, response.status);
   }
 }
-

@@ -60,8 +60,8 @@ function App() {
   });
   const {
     recipeDetailState,
-    recipeFormData,
-    setRecipeFormData,
+    instructionsDraft,
+    setInstructionsDraft,
     ingredients,
     setIngredients,
     isLoadingIngredients,
@@ -262,15 +262,12 @@ function App() {
           recipe={{
             data: recipeDetailState.selectedRecipe,
             isLoading: recipeDetailState.isLoadingRecipe,
-            formData: recipeFormData,
-            updateState: {
-              isUpdating: recipeDetailState.isUpdatingRecipe,
-              error: recipeDetailState.recipeUpdateError,
-              success: recipeDetailState.recipeUpdateSuccess,
-            },
+            instructionsDraft,
+            updateError: recipeDetailState.recipeUpdateError,
             actions: {
-              onUpdate: detailHandlers.onUpdateRecipe,
-              setFormData: setRecipeFormData,
+              onFieldSave: detailHandlers.onSaveRecipeField,
+              setInstructionsDraft,
+              onInstructionsBlur: detailHandlers.onInstructionsBlur,
               onBack: () => navigate('list'),
             },
           }}

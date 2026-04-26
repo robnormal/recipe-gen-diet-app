@@ -1,15 +1,13 @@
 import { useState } from 'react';
-import { Recipe, RecipeFormData, IngredientWithFood } from '../types';
+import {
+  Recipe,
+  RecipeEditableField,
+  RecipeEditableValue,
+  RecipeUpdateData,
+  IngredientWithFood,
+} from '../types';
 import { fetchRecipeDetails as apiFetchRecipeDetails, updateRecipeDetails as apiUpdateRecipeDetails, fetchIngredients as apiFetchIngredients, deleteIngredient as apiDeleteIngredient, ApiError } from '../services/api';
 import { View } from './useNavigation';
-
-const RECIPE_FORM_INITIAL_STATE: RecipeFormData = {
-  name: '',
-  description: '',
-  instructions: '',
-  servings: '',
-  total_time_minutes: '',
-};
 
 interface UseRecipeDetailOptions {
   onRecipeChange?: (recipe: Recipe) => void;
@@ -23,18 +21,12 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [isLoadingRecipe, setIsLoadingRecipe] = useState<boolean>(false);
   const [recipeUpdateError, setRecipeUpdateError] = useState<string | null>(null);
-  const [recipeUpdateSuccess, setRecipeUpdateSuccess] = useState<string | null>(null);
-  const [isUpdatingRecipe, setIsUpdatingRecipe] = useState<boolean>(false);
+  const [instructionsDraft, setInstructionsDraft] = useState<string>('');
 
   // Ingredients state
   const [ingredients, setIngredients] = useState<IngredientWithFood[]>([]);
   const [isLoadingIngredients, setIsLoadingIngredients] = useState<boolean>(false);
   const [ingredientError, setIngredientError] = useState<string | null>(null);
-
-  // Recipe form data state
-  const [recipeFormData, setRecipeFormData] = useState<RecipeFormData>({
-    ...RECIPE_FORM_INITIAL_STATE
-  });
 
   const handleUnauthorizedError = (error: unknown): boolean => {
     if (error instanceof ApiError && error.status === 401) {
@@ -45,6 +37,39 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
 
   const getErrorMessage = (error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback;
+
+  const normalizeRecipeField = (
+    field: RecipeEditableField,
+    value: RecipeEditableValue
+  ): RecipeUpdateData => {
+    if (field === 'name') {
+      const name = String(value ?? '').trim();
+      if (!name) {
+        throw new Error('Recipe name is required.');
+      }
+      return { name };
+    }
+
+    if (field === 'description' || field === 'instructions') {
+      const text = String(value ?? '').trim();
+      return { [field]: text || null };
+    }
+
+    const rawValue = String(value ?? '').trim();
+    if (!rawValue) {
+      return { [field]: null };
+    }
+
+    const numericValue = Number.parseInt(rawValue, 10);
+    if (Number.isNaN(numericValue) || numericValue <= 0) {
+      throw new Error(field === 'servings' ? 'Enter a positive servings count.' : 'Enter a positive time.');
+    }
+
+    return { [field]: numericValue };
+  };
+
+  const getRecipeFieldValue = (recipe: Recipe, field: RecipeEditableField): RecipeEditableValue =>
+    recipe[field];
 
   // Helper function to get ingredient quantity
   const getIngredientQuantity = (ingredient: IngredientWithFood): string => {
@@ -72,26 +97,18 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
     if (navigate) {
       navigate('detail', recipe.id);
     }
-    setIsLoadingRecipe(true);
-    setRecipeUpdateError(null);
-    setRecipeUpdateSuccess(null);
-    setIsLoadingIngredients(true);
-    setIngredientError(null);
-    setSelectedRecipe(recipe);
+      setIsLoadingRecipe(true);
+      setRecipeUpdateError(null);
+      setIsLoadingIngredients(true);
+      setIngredientError(null);
+      setSelectedRecipe(recipe);
+      setInstructionsDraft(recipe.instructions || '');
 
     try {
       // Fetch full recipe details
       const recipeDetails = await apiFetchRecipeDetails(recipe.id);
       setSelectedRecipe(recipeDetails);
-
-      // Initialize form data with recipe details
-      setRecipeFormData({
-        name: recipeDetails.name,
-        description: recipeDetails.description || '',
-        instructions: recipeDetails.instructions || '',
-        servings: recipeDetails.servings?.toString() || '',
-        total_time_minutes: recipeDetails.total_time_minutes?.toString() || ''
-      });
+      setInstructionsDraft(recipeDetails.instructions || '');
 
       // Fetch ingredients
       const ingredientsList = await apiFetchIngredients(recipe.id);
@@ -111,89 +128,67 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
     }
   };
 
-  const handleUpdateRecipe = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleFieldSave = async (field: RecipeEditableField, value: RecipeEditableValue) => {
     if (!selectedRecipe) {
       return;
     }
 
-    setIsUpdatingRecipe(true);
+    const previousRecipe = selectedRecipe;
+    const updateData = normalizeRecipeField(field, value);
+    const normalizedValue = updateData[field];
+
+    if (getRecipeFieldValue(previousRecipe, field) === normalizedValue) {
+      return;
+    }
+
+    const optimisticRecipe = {
+      ...previousRecipe,
+      [field]: normalizedValue,
+    };
+
     setRecipeUpdateError(null);
-    setRecipeUpdateSuccess(null);
+    setSelectedRecipe(optimisticRecipe);
+    if (onRecipeChange) {
+      onRecipeChange(optimisticRecipe);
+    }
 
     try {
-      const updateData: {
-        name?: string;
-        description?: string | null;
-        instructions?: string | null;
-        servings?: number | null;
-        total_time_minutes?: number | null;
-      } = {
-        name: recipeFormData.name.trim(),
-      };
-
-      if (recipeFormData.description.trim()) {
-        updateData.description = recipeFormData.description.trim();
-      } else {
-        updateData.description = null;
-      }
-
-      if (recipeFormData.instructions.trim()) {
-        updateData.instructions = recipeFormData.instructions.trim();
-      } else {
-        updateData.instructions = null;
-      }
-
-      if (recipeFormData.servings) {
-        const servings = parseInt(recipeFormData.servings);
-        if (!isNaN(servings) && servings > 0) {
-          updateData.servings = servings;
-        } else {
-          updateData.servings = null;
-        }
-      } else {
-        updateData.servings = null;
-      }
-
-      if (recipeFormData.total_time_minutes) {
-        const time = parseInt(recipeFormData.total_time_minutes);
-        if (!isNaN(time) && time > 0) {
-          updateData.total_time_minutes = time;
-        } else {
-          updateData.total_time_minutes = null;
-        }
-      } else {
-        updateData.total_time_minutes = null;
-      }
-
       const updatedRecipe = await apiUpdateRecipeDetails(selectedRecipe.id, updateData);
       setSelectedRecipe(updatedRecipe);
-
-      // Update form data with the updated recipe
-      setRecipeFormData({
-        name: updatedRecipe.name,
-        description: updatedRecipe.description || '',
-        instructions: updatedRecipe.instructions || '',
-        servings: updatedRecipe.servings?.toString() || '',
-        total_time_minutes: updatedRecipe.total_time_minutes?.toString() || ''
-      });
-
-      setRecipeUpdateSuccess('Recipe updated successfully!');
+      if (field === 'instructions') {
+        setInstructionsDraft(updatedRecipe.instructions || '');
+      }
 
       if (onRecipeChange) {
         onRecipeChange(updatedRecipe);
       }
     } catch (err) {
       console.error('Recipe update error:', err);
-      if (handleUnauthorizedError(err)) {
-        setRecipeUpdateError('Session expired. Please login again.');
-      } else {
-        setRecipeUpdateError(getErrorMessage(err, 'Failed to update recipe. Please try again.'));
+      setSelectedRecipe(previousRecipe);
+      if (field === 'instructions') {
+        setInstructionsDraft(previousRecipe.instructions || '');
       }
-    } finally {
-      setIsUpdatingRecipe(false);
+      if (onRecipeChange) {
+        onRecipeChange(previousRecipe);
+      }
+
+      let message: string;
+      if (handleUnauthorizedError(err)) {
+        message = 'Session expired. Please login again.';
+      } else {
+        message = getErrorMessage(err, 'Failed to update recipe. Please try again.');
+      }
+      setRecipeUpdateError(message);
+      throw new Error(message);
     }
+  };
+
+  const handleInstructionsBlur = async () => {
+    if (!selectedRecipe || instructionsDraft === (selectedRecipe.instructions || '')) {
+      return;
+    }
+
+    await handleFieldSave('instructions', instructionsDraft);
   };
 
   const handleDeleteIngredient = async (ingredientId: number) => {
@@ -225,13 +220,8 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
     setSelectedRecipe(null);
     setIngredients([]);
     setRecipeUpdateError(null);
-    setRecipeUpdateSuccess(null);
     setIngredientError(null);
-    setRecipeFormData({ ...RECIPE_FORM_INITIAL_STATE });
-  };
-
-  const resetRecipeFormData = () => {
-    setRecipeFormData({ ...RECIPE_FORM_INITIAL_STATE });
+    setInstructionsDraft('');
   };
 
   return {
@@ -239,12 +229,10 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
       selectedRecipe,
       isLoadingRecipe,
       recipeUpdateError,
-      recipeUpdateSuccess,
-      isUpdatingRecipe,
     },
     setSelectedRecipe,
-    recipeFormData,
-    setRecipeFormData,
+    instructionsDraft,
+    setInstructionsDraft,
     ingredients,
     setIngredients,
     isLoadingIngredients,
@@ -252,7 +240,8 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
     setIngredientError,
     handlers: {
       onRecipeClick: handleRecipeClick,
-      onUpdateRecipe: handleUpdateRecipe,
+      onSaveRecipeField: handleFieldSave,
+      onInstructionsBlur: handleInstructionsBlur,
       onDeleteIngredient: handleDeleteIngredient,
       onBack: handleBackToRecipes,
     },
@@ -260,7 +249,5 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
       getIngredientQuantity,
       getIngredientUnit,
     },
-    resetRecipeFormData,
   };
 }
-

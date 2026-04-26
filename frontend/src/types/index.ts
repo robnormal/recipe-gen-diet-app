@@ -88,12 +88,21 @@ export interface FoodCategory {
   emoji: string | null;
 }
 
-export interface RecipeFormData {
-  name: string;
-  description: string;
-  instructions: string;
-  servings: string;
-  total_time_minutes: string;
+export type RecipeEditableField =
+  | 'name'
+  | 'description'
+  | 'instructions'
+  | 'servings'
+  | 'total_time_minutes';
+
+export type RecipeEditableValue = string | number | null;
+
+export interface RecipeUpdateData {
+  name?: string;
+  description?: string | null;
+  instructions?: string | null;
+  servings?: number | null;
+  total_time_minutes?: number | null;
 }
 
 export interface IngredientFormState {

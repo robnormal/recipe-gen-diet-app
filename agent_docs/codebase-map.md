@@ -79,10 +79,9 @@ Vite/React workspace for the authenticated recipe, food, and meal-plan UI.
 - `measurement-type-selector.tsx` - Selector for entering ingredients by grams or available food portions.
 - `new-ingredient-form.tsx` - Form for adding a selected food as a recipe ingredient.
 - `recipe-creation-forms.tsx` - UI for manual recipe creation and AI recipe generation prompts.
-- `recipe-detail-container.tsx` - Layout/container for recipe detail, edit form, ingredients, and nutrient display.
-- `recipe-detail-header.tsx` - Recipe detail header and editable recipe metadata form.
+- `recipe-detail-header.tsx` - Recipe detail header with inline click-to-edit recipe metadata, stats, and field-level saves.
 - `recipe-detail-view.tsx` - Recipe detail screen composition.
-- `recipe-editor.tsx` - Recipe edit form fields and submit controls.
+- `recipe-detail-header.test.tsx` - Component tests for inline recipe metadata editing behavior.
 - `recipe-list.tsx` - Recipe list view plus navigation to create/generate/detail flows.
 - `recipe-nutrients-table.tsx` - Nutrient table used for recipes or meal plans.
 
@@ -96,7 +95,7 @@ Vite/React workspace for the authenticated recipe, food, and meal-plan UI.
 - `useMealPlansList.ts` - Meal-plan list loading and create-meal-plan state.
 - `useNavigation.ts` - URL-backed view state for recipes, foods, creation, generation, meal plans, and browser back/forward handling.
 - `useRecipeCreation.ts` - Manual recipe creation and AI generation workflow state; creates generated recipes and ingredients.
-- `useRecipeDetail.ts` - Recipe detail loading, editing, ingredient list loading, deletion, and display helpers.
+- `useRecipeDetail.ts` - Recipe detail loading, inline metadata saves, instructions draft state, ingredient list loading, deletion, and display helpers.
 - `useRecipesList.ts` - Recipe list loading state and refresh helper.
 
 ### `frontend/src/services/`
