@@ -19,6 +19,8 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
   const [selectedPortionId, setSelectedPortionId] = useState<number | null>(null);
   const [portionQuantity, setPortionQuantity] = useState<string>('1');
   const [portionQuantityInputValue, setPortionQuantityInputValue] = useState<string>('1');
+  const [gramError, setGramError] = useState<string | null>(null);
+  const [portionQuantityError, setPortionQuantityError] = useState<string | null>(null);
 
   // Fetch portions when food is loaded
   useEffect(() => {
@@ -164,17 +166,18 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
               id="food-amount"
               type="number"
               step="0.1"
-              min="0.1"
               value={gramInputValue}
               onChange={(e) => {
                 setGramInputValue(e.target.value);
+                setGramError(null);
               }}
               onBlur={(e) => {
                 const value = parseFloat(e.target.value);
                 if (!isNaN(value) && value > 0) {
                   setAmount(value);
+                  setGramError(null);
                 } else {
-                  setGramInputValue(amount.toString());
+                  setGramError('Enter a number greater than 0');
                 }
               }}
               onKeyDown={(e) => {
@@ -186,6 +189,7 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
               placeholder="100"
               style={{ maxWidth: '200px', display: 'inline-block', marginLeft: '0.5rem' }}
             />
+            {gramError && <p className="error-message" style={{ marginTop: '0.25rem' }}>{gramError}</p>}
           </div>
         )}
 
@@ -198,10 +202,10 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
                 id="food-portion-quantity"
                 type="number"
                 step="0.1"
-                min="0.1"
                 value={portionQuantityInputValue}
                 onChange={(e) => {
                   setPortionQuantityInputValue(e.target.value);
+                  setPortionQuantityError(null);
                 }}
                 onBlur={(e) => {
                   const quantity = parseFloat(e.target.value);
@@ -210,8 +214,9 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
                     // Calculate gram weight: (quantity / portion.amount) * portion.gram_weight
                     const gramWeight = (quantity / selectedPortion.amount) * selectedPortion.gram_weight;
                     setAmount(gramWeight);
+                    setPortionQuantityError(null);
                   } else {
-                    setPortionQuantityInputValue(portionQuantity);
+                    setPortionQuantityError('Enter a number greater than 0');
                   }
                 }}
                 onKeyDown={(e) => {
@@ -226,6 +231,7 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
               <span style={{ marginLeft: '0.5rem' }}>
                 {selectedPortion.modifier ? selectedPortion.modifier : ''}
               </span>
+              {portionQuantityError && <p className="error-message" style={{ marginTop: '0.25rem' }}>{portionQuantityError}</p>}
             </div>
           ) : null;
         })()}

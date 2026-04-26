@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { IngredientFormState, IngredientWithFood, FoodResult, FoodPortion, MeasurementType } from '../types';
 import { fetchFoodPortions as apiFetchFoodPortions, createIngredient as apiCreateIngredient, updateIngredient as apiUpdateIngredient, fetchIngredients as apiFetchIngredients, fetchRecipeDetails as apiFetchRecipeDetails, ApiError } from '../services/api';
 
@@ -55,6 +55,47 @@ export function useIngredientForm(options: UseIngredientFormOptions) {
   const [ingredientUpdateError, setIngredientUpdateError] = useState<string | null>(null);
   const [quickSaveStateById, setQuickSaveStateById] = useState<Record<number, { isSaving: boolean; error: string | null }>>({});
 
+  // Refs to track which portion IDs have already been auto-seeded so we
+  // only fill the default quantity once per selection.
+  const seededNewPortionIdRef = useRef<number | null>(null);
+  const seededEditPortionIdRef = useRef<number | null>(null);
+
+  // Seed default quantity for new-ingredient form when a portion is selected
+  useEffect(() => {
+    if (selectedPortionId !== seededNewPortionIdRef.current) {
+      seededNewPortionIdRef.current = selectedPortionId;
+      if (selectedPortionId && selectedMeasurementType === 'portion') {
+        const portion = availablePortions.find((p) => p.id === selectedPortionId);
+        if (portion) {
+          setNewIngredient((prev) => {
+            if (!prev.quantity) {
+              return { ...prev, quantity: portion.amount.toString() };
+            }
+            return prev;
+          });
+        }
+      }
+    }
+  }, [selectedPortionId, selectedMeasurementType, availablePortions]);
+
+  // Seed default quantity for edit-ingredient form when a portion is selected
+  useEffect(() => {
+    if (editSelectedPortionId !== seededEditPortionIdRef.current) {
+      seededEditPortionIdRef.current = editSelectedPortionId;
+      if (editSelectedPortionId && editSelectedMeasurementType === 'portion') {
+        const portion = editAvailablePortions.find((p) => p.id === editSelectedPortionId);
+        if (portion) {
+          setEditIngredientData((prev) => {
+            if (!prev.quantity) {
+              return { ...prev, quantity: portion.amount.toString() };
+            }
+            return prev;
+          });
+        }
+      }
+    }
+  }, [editSelectedPortionId, editSelectedMeasurementType, editAvailablePortions]);
+
   const handleUnauthorizedError = (error: unknown): boolean => {
     if (error instanceof ApiError && error.status === 401) {
       return true;
@@ -85,6 +126,7 @@ export function useIngredientForm(options: UseIngredientFormOptions) {
     setSelectedPortionId(null);
     setAvailablePortions([]);
     setPortionsError(null);
+    seededNewPortionIdRef.current = null;
   };
 
   const resetEditIngredientState = () => {
@@ -95,6 +137,7 @@ export function useIngredientForm(options: UseIngredientFormOptions) {
     setEditAvailablePortions([]);
     setEditPortionsError(null);
     setIngredientUpdateError(null);
+    seededEditPortionIdRef.current = null;
   };
 
   const handleSelectFoodForIngredient = async (food: FoodResult) => {
@@ -220,6 +263,7 @@ export function useIngredientForm(options: UseIngredientFormOptions) {
     setEditSelectedMeasurementType(null);
     setEditSelectedPortionId(null);
     setEditPortionsError(null);
+    seededEditPortionIdRef.current = null;
 
     // Determine measurement type
     if (ingredient.food_portion_id) {

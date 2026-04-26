@@ -293,7 +293,6 @@ export function MealPlanDetailView({
                               <input
                                 type="number"
                                 step={editingInputMode === 'grams' ? '1' : '0.1'}
-                                min="0.1"
                                 value={editingQuantity}
                                 onChange={(e) => setEditingQuantity(e.target.value)}
                                 className="form-input inline-input"
@@ -429,7 +428,6 @@ export function MealPlanDetailView({
                   <input
                     type="number"
                     step={newRecipeInputMode === 'grams' ? '1' : '0.1'}
-                    min="0.1"
                     value={newRecipeQuantity}
                     onChange={(e) => setNewRecipeQuantity(e.target.value)}
                     className="form-input"

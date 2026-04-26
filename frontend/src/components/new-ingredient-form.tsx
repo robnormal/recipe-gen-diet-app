@@ -102,12 +102,10 @@ export function NewIngredientForm({
               id="ingredient-gram-weight"
               type="number"
               step="0.1"
-              min="0"
               value={newIngredient.gram_weight}
               onChange={(e) => setNewIngredient({ ...newIngredient, gram_weight: e.target.value })}
               className="form-input"
               placeholder="Enter weight in grams"
-              required
             />
           </div>
         )}
@@ -121,14 +119,12 @@ export function NewIngredientForm({
                 id="ingredient-quantity"
                 type="number"
                 step="0.1"
-                min="0"
-                value={newIngredient.quantity || selectedPortion.amount.toString()}
+                value={newIngredient.quantity}
                 onChange={(e) => setNewIngredient({ ...newIngredient, quantity: e.target.value })}
                 className="form-input"
                 placeholder={`Enter quantity (base: ${selectedPortion.amount}${
                   selectedPortion.modifier ? ' ' + selectedPortion.modifier : ''
                 })`}
-                required
               />
             </div>
           ) : null;

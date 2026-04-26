@@ -139,6 +139,12 @@ export function IngredientRow({
       window.clearTimeout(debounceRef.current);
     }
 
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+      setLocalAmountError(null);
+      return;
+    }
+
     debounceRef.current = window.setTimeout(() => {
       void commitQuickAmount(value, false);
     }, 600);
@@ -243,7 +249,6 @@ export function IngredientRow({
           <input
             type="number"
             step="0.1"
-            min="0"
             value={amountDraft}
             onFocus={() => {
               inputFocusedRef.current = true;
@@ -255,7 +260,6 @@ export function IngredientRow({
             aria-label={`Amount for ${ingredient.food_description}`}
             aria-invalid={Boolean(amountError)}
             placeholder="0"
-            required
           />
           {isQuickSaving && <span className="quantity-save-status">Saving...</span>}
           {!isEditing && amountError && <span className="error-text quantity-error">{amountError}</span>}
