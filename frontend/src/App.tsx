@@ -18,8 +18,9 @@ import { useFoodDetail } from './hooks/useFoodDetail';
 import { useMealPlansList } from './hooks/useMealPlansList';
 import { useMealPlanDetail } from './hooks/useMealPlanDetail';
 import { useNavigation } from './hooks/useNavigation';
+import { ToastProvider } from './contexts/toast-context';
 
-function App() {
+function AppContent() {
   // Navigation
   const navigation = useNavigation();
   const { view, recipeId, foodId, mealPlanId, navigate } = navigation;
@@ -63,6 +64,7 @@ function App() {
     instructionsDraft,
     setInstructionsDraft,
     ingredients,
+    setSelectedRecipe,
     setIngredients,
     isLoadingIngredients,
     ingredientError,
@@ -75,7 +77,8 @@ function App() {
     recipeId: recipeDetailState.selectedRecipe?.id ?? null,
     onIngredientChange: (ingredientsList, updatedRecipe) => {
       setIngredients(ingredientsList);
-      recipeDetail.handlers.onRecipeClick(updatedRecipe);
+      setSelectedRecipe(updatedRecipe);
+      refreshRecipes();
     },
     onSelectFood: () => {
       clearSearchResults();
@@ -298,6 +301,7 @@ function App() {
               },
               isUpdating: editIngredientState.isUpdatingIngredient,
               error: editIngredientState.ingredientUpdateError,
+              quickSaveStateById: editIngredientState.quickSaveStateById,
             },
             actions: {
               setFormData: editIngredientState.setEditIngredientData,
@@ -307,6 +311,8 @@ function App() {
               onCancel: ingredientHandlers.onCancelEditIngredient,
               onUpdate: ingredientHandlers.onUpdateIngredient,
               onDelete: detailHandlers.onDeleteIngredient,
+              onQuickAmountSave: ingredientHandlers.onQuickAmountSave,
+              onClearQuickAmountError: editIngredientState.clearQuickSaveError,
             },
           }}
           ingredientSearch={{
@@ -383,6 +389,14 @@ function App() {
         </>
       )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 }
 

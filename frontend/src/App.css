@@ -645,6 +645,31 @@ p {
   min-width: 60px;
 }
 
+.quantity-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.quantity-input {
+  max-width: 7rem;
+}
+
+.quantity-input--saving {
+  border-color: #3498db;
+  background: #f7fbfe;
+}
+
+.quantity-save-status {
+  color: #7f8c8d;
+  font-size: 0.75rem;
+}
+
+.quantity-error {
+  margin-left: 0;
+}
+
 .error-text {
   color: #e74c3c;
   font-size: 0.75rem;
@@ -712,6 +737,13 @@ p {
 .ingredient-actions {
   display: flex;
   gap: 0.25rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.save-blocker-hint {
+  color: #7f8c8d;
+  font-size: 0.75rem;
 }
 
 .edit-button {
@@ -740,6 +772,41 @@ p {
 
 .delete-button:hover {
   background-color: #c0392b;
+}
+
+.add-ingredient-cta-row td {
+  padding: 0.75rem;
+  text-align: center;
+  background: #f8f9fa;
+}
+
+.add-ingredient-cta-button {
+  border: 1px dashed #95a5a6;
+  border-radius: 4px;
+  background: white;
+  color: #2c3e50;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+}
+
+.add-ingredient-cta-button:hover,
+.add-ingredient-cta-button:focus-visible {
+  border-color: #3498db;
+  color: #2980b9;
+  outline: none;
+}
+
+.ingredient-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ingredient-empty-state p {
+  margin: 0;
 }
 
 /* Add Ingredient Section */
@@ -1056,6 +1123,79 @@ p {
   border-radius: 4px;
   color: #2980b9;
   font-size: 0.9rem;
+}
+
+/* Toasts */
+.toast-host {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(360px, calc(100vw - 2rem));
+}
+
+.toast {
+  overflow: hidden;
+  color: white;
+  background: #2c3e50;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(44, 62, 80, 0.25);
+}
+
+.toast-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.toast-content span {
+  flex: 1;
+}
+
+.toast-action,
+.toast-dismiss {
+  border: none;
+  background: transparent;
+  color: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.toast-action {
+  text-decoration: underline;
+}
+
+.toast-dismiss {
+  opacity: 0.75;
+}
+
+.toast-action:hover,
+.toast-dismiss:hover {
+  opacity: 0.9;
+}
+
+.toast-countdown {
+  height: 3px;
+  background: #3498db;
+  animation-name: toast-countdown;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes toast-countdown {
+  from {
+    width: 100%;
+  }
+
+  to {
+    width: 0%;
+  }
 }
 
 /* Responsive Design */

@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import {
   FoodPortion,
   IngredientFormState,
@@ -23,6 +22,7 @@ interface IngredientsTableProps {
   editPortionsError: string | null;
   isSavingIngredient: boolean;
   ingredientUpdateError: string | null;
+  quickSaveStateById: Record<number, { isSaving: boolean; error: string | null }>;
   getIngredientQuantity: (ingredient: IngredientWithFood) => string;
   getIngredientUnit: (ingredient: IngredientWithFood) => string;
   onViewFoodDetails?: (foodId: number) => void;
@@ -30,6 +30,9 @@ interface IngredientsTableProps {
   onCancelEditIngredient: () => void;
   onUpdateIngredient: () => void;
   onDeleteIngredient: (ingredientId: number) => Promise<void>;
+  onQuickAmountSave: (ingredient: IngredientWithFood, draft: string) => Promise<void>;
+  onClearQuickAmountError: (ingredientId: number) => void;
+  onAddIngredientClick?: () => void;
 }
 
 export function IngredientsTable({
@@ -48,6 +51,7 @@ export function IngredientsTable({
   editPortionsError,
   isSavingIngredient,
   ingredientUpdateError,
+  quickSaveStateById,
   getIngredientQuantity,
   getIngredientUnit,
   onViewFoodDetails,
@@ -55,45 +59,10 @@ export function IngredientsTable({
   onCancelEditIngredient,
   onUpdateIngredient,
   onDeleteIngredient,
+  onQuickAmountSave,
+  onClearQuickAmountError,
+  onAddIngredientClick,
 }: IngredientsTableProps) {
-  // Local state for ingredient amount input to allow normal editing
-  const [localAmountValue, setLocalAmountValue] = useState<string>('');
-
-  // Sync local input value when editing starts or measurement type changes
-  useEffect(() => {
-    if (editingIngredientId !== null) {
-      const value = editSelectedMeasurementType === 'grams'
-        ? editIngredientData.gram_weight
-        : editIngredientData.quantity || '';
-      setLocalAmountValue(value);
-    } else {
-      setLocalAmountValue('');
-    }
-  }, [editingIngredientId, editSelectedMeasurementType, editIngredientData.gram_weight, editIngredientData.quantity]);
-
-  // Update parent state from local input value
-  const updateParentState = () => {
-    if (editSelectedMeasurementType === 'grams') {
-      setEditIngredientData({ ...editIngredientData, gram_weight: localAmountValue });
-    } else {
-      setEditIngredientData({ ...editIngredientData, quantity: localAmountValue });
-    }
-  };
-
-  // Handle blur - update parent state
-  const handleAmountBlur = () => {
-    updateParentState();
-  };
-
-  // Handle Enter key - update parent state
-  const handleAmountKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      updateParentState();
-      e.currentTarget.blur();
-    }
-  };
-
   if (isLoadingIngredients) {
     return <p className="loading-message">Loading ingredients...</p>;
   }
@@ -103,7 +72,14 @@ export function IngredientsTable({
   }
 
   if (ingredients.length === 0) {
-    return <p className="no-results">No ingredients yet. Add ingredients below.</p>;
+    return (
+      <div className="no-results ingredient-empty-state">
+        <p>No ingredients yet.</p>
+        <button type="button" className="add-ingredient-cta-button" onClick={onAddIngredientClick}>
+          Add your first ingredient
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -123,8 +99,6 @@ export function IngredientsTable({
             key={ingredient.id}
             ingredient={ingredient}
             isEditing={editingIngredientId === ingredient.id}
-            localAmountValue={localAmountValue}
-            setLocalAmountValue={setLocalAmountValue}
             editIngredientData={editIngredientData}
             setEditIngredientData={setEditIngredientData}
             editSelectedMeasurementType={editSelectedMeasurementType}
@@ -136,6 +110,8 @@ export function IngredientsTable({
             editPortionsError={editPortionsError}
             isSavingIngredient={isSavingIngredient}
             ingredientUpdateError={ingredientUpdateError}
+            isQuickSaving={quickSaveStateById[ingredient.id]?.isSaving ?? false}
+            quickSaveError={quickSaveStateById[ingredient.id]?.error ?? null}
             getIngredientQuantity={getIngredientQuantity}
             getIngredientUnit={getIngredientUnit}
             onViewFoodDetails={onViewFoodDetails}
@@ -143,11 +119,20 @@ export function IngredientsTable({
             onCancelEditIngredient={onCancelEditIngredient}
             onUpdateIngredient={onUpdateIngredient}
             onDeleteIngredient={onDeleteIngredient}
-            onAmountBlur={handleAmountBlur}
-            onAmountKeyDown={handleAmountKeyDown}
+            onQuickAmountSave={onQuickAmountSave}
+            onClearQuickAmountError={onClearQuickAmountError}
           />
         ))}
       </tbody>
+      <tfoot>
+        <tr className="add-ingredient-cta-row">
+          <td colSpan={5}>
+            <button type="button" className="add-ingredient-cta-button" onClick={onAddIngredientClick}>
+              + Add ingredient
+            </button>
+          </td>
+        </tr>
+      </tfoot>
     </table>
   );
 }

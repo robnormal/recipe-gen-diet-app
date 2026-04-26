@@ -53,6 +53,7 @@ export function useIngredientForm(options: UseIngredientFormOptions) {
   });
   const [isUpdatingIngredient, setIsUpdatingIngredient] = useState<boolean>(false);
   const [ingredientUpdateError, setIngredientUpdateError] = useState<string | null>(null);
+  const [quickSaveStateById, setQuickSaveStateById] = useState<Record<number, { isSaving: boolean; error: string | null }>>({});
 
   const handleUnauthorizedError = (error: unknown): boolean => {
     if (error instanceof ApiError && error.status === 401) {
@@ -63,6 +64,20 @@ export function useIngredientForm(options: UseIngredientFormOptions) {
 
   const getErrorMessage = (error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback;
+
+  const setQuickSaveState = (ingredientId: number, state: { isSaving?: boolean; error?: string | null }) => {
+    setQuickSaveStateById((current) => ({
+      ...current,
+      [ingredientId]: {
+        isSaving: state.isSaving ?? current[ingredientId]?.isSaving ?? false,
+        error: state.error !== undefined ? state.error : current[ingredientId]?.error ?? null,
+      },
+    }));
+  };
+
+  const clearQuickSaveError = (ingredientId: number) => {
+    setQuickSaveState(ingredientId, { error: null });
+  };
 
   const resetNewIngredientForm = () => {
     setNewIngredient({ ...NEW_INGREDIENT_INITIAL_STATE });
@@ -316,6 +331,68 @@ export function useIngredientForm(options: UseIngredientFormOptions) {
     }
   };
 
+  const handleQuickAmountSave = async (ingredient: IngredientWithFood, draft: string) => {
+    if (!recipeId) {
+      return;
+    }
+
+    const amount = Number.parseFloat(draft);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      const message = 'Enter a number greater than 0';
+      setQuickSaveState(ingredient.id, { error: message });
+      throw new Error(message);
+    }
+
+    setQuickSaveState(ingredient.id, { isSaving: true, error: null });
+
+    try {
+      let gramWeight = amount;
+      let quantity: number | null = null;
+      let foodPortionId: number | null = null;
+
+      if (ingredient.food_portion_id) {
+        quantity = amount;
+        foodPortionId = ingredient.food_portion_id;
+
+        if (ingredient.quantity && ingredient.quantity > 0) {
+          gramWeight = (amount / ingredient.quantity) * ingredient.gram_weight;
+        } else if (ingredient.portion_amount && ingredient.portion_gram_weight) {
+          gramWeight = (amount / ingredient.portion_amount) * ingredient.portion_gram_weight;
+        } else {
+          const portions = await apiFetchFoodPortions(ingredient.food_id);
+          const selectedPortion = portions.find((portion) => portion.id === ingredient.food_portion_id);
+          if (!selectedPortion) {
+            throw new Error('Selected portion not found');
+          }
+          gramWeight = (amount / selectedPortion.amount) * selectedPortion.gram_weight;
+        }
+      }
+
+      await apiUpdateIngredient(recipeId, ingredient.id, {
+        gram_weight: gramWeight,
+        food_portion_id: foodPortionId,
+        quantity,
+      });
+
+      if (onIngredientChange) {
+        const [ingredientsList, updatedRecipe] = await Promise.all([
+          apiFetchIngredients(recipeId),
+          apiFetchRecipeDetails(recipeId)
+        ]);
+        onIngredientChange(ingredientsList, updatedRecipe);
+      }
+
+      setQuickSaveState(ingredient.id, { isSaving: false, error: null });
+    } catch (err) {
+      console.error('Ingredient quick update error:', err);
+      const message = handleUnauthorizedError(err)
+        ? 'Session expired. Please login again.'
+        : getErrorMessage(err, 'Failed to update ingredient. Please try again.');
+      setQuickSaveState(ingredient.id, { isSaving: false, error: message });
+      throw new Error(message);
+    }
+  };
+
   return {
     newIngredientState: {
       newIngredient,
@@ -345,6 +422,8 @@ export function useIngredientForm(options: UseIngredientFormOptions) {
       setEditSelectedMeasurementType,
       editSelectedPortionId,
       setEditSelectedPortionId,
+      quickSaveStateById,
+      clearQuickSaveError,
     },
     handlers: {
       onSelectFoodForIngredient: handleSelectFoodForIngredient,
@@ -352,6 +431,7 @@ export function useIngredientForm(options: UseIngredientFormOptions) {
       onStartEditIngredient: handleStartEditIngredient,
       onCancelEditIngredient: handleCancelEditIngredient,
       onUpdateIngredient: () => handleUpdateIngredient(),
+      onQuickAmountSave: handleQuickAmountSave,
     },
     resetFunctions: {
       resetNewIngredientForm,
@@ -359,4 +439,3 @@ export function useIngredientForm(options: UseIngredientFormOptions) {
     },
   };
 }
-

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Recipe,
   RecipeEditableField,
@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { fetchRecipeDetails as apiFetchRecipeDetails, updateRecipeDetails as apiUpdateRecipeDetails, fetchIngredients as apiFetchIngredients, deleteIngredient as apiDeleteIngredient, ApiError } from '../services/api';
 import { View } from './useNavigation';
+import { useToasts } from './useToasts';
 
 interface UseRecipeDetailOptions {
   onRecipeChange?: (recipe: Recipe) => void;
@@ -16,6 +17,15 @@ interface UseRecipeDetailOptions {
 
 export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
   const { onRecipeChange, navigate } = options;
+  const { pushToast, dismissToast } = useToasts();
+
+  interface PendingDelete {
+    ingredient: IngredientWithFood;
+    index: number;
+    recipeId: number;
+    timerId: number;
+    toastId: string;
+  }
 
   // Recipe detail state
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
@@ -27,6 +37,7 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
   const [ingredients, setIngredients] = useState<IngredientWithFood[]>([]);
   const [isLoadingIngredients, setIsLoadingIngredients] = useState<boolean>(false);
   const [ingredientError, setIngredientError] = useState<string | null>(null);
+  const pendingDeletesRef = useRef<Map<number, PendingDelete>>(new Map());
 
   const handleUnauthorizedError = (error: unknown): boolean => {
     if (error instanceof ApiError && error.status === 401) {
@@ -71,6 +82,83 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
   const getRecipeFieldValue = (recipe: Recipe, field: RecipeEditableField): RecipeEditableValue =>
     recipe[field];
 
+  const restoreIngredient = (ingredient: IngredientWithFood, index: number) => {
+    setIngredients((current) => {
+      if (current.some((currentIngredient) => currentIngredient.id === ingredient.id)) {
+        return current;
+      }
+
+      const next = [...current];
+      next.splice(Math.min(index, next.length), 0, ingredient);
+      return next;
+    });
+  };
+
+  const finalizePendingDelete = async (ingredientId: number, shouldDismissToast = true) => {
+    const pendingDelete = pendingDeletesRef.current.get(ingredientId);
+    if (!pendingDelete) {
+      return;
+    }
+
+    window.clearTimeout(pendingDelete.timerId);
+    pendingDeletesRef.current.delete(ingredientId);
+
+    if (shouldDismissToast) {
+      dismissToast(pendingDelete.toastId);
+    }
+
+    try {
+      await apiDeleteIngredient(pendingDelete.recipeId, ingredientId);
+      const updatedRecipe = await apiFetchRecipeDetails(pendingDelete.recipeId);
+      setSelectedRecipe((current) => current?.id === updatedRecipe.id ? updatedRecipe : current);
+
+      if (onRecipeChange) {
+        onRecipeChange(updatedRecipe);
+      }
+    } catch (err) {
+      console.error('Delete ingredient error:', err);
+      restoreIngredient(pendingDelete.ingredient, pendingDelete.index);
+
+      const message = handleUnauthorizedError(err)
+        ? 'Session expired. Please login again.'
+        : getErrorMessage(err, 'Failed to delete ingredient');
+      setIngredientError(message);
+      pushToast({ message, durationMs: 5000 });
+    }
+  };
+
+  const cancelPendingDelete = (ingredientId: number) => {
+    const pendingDelete = pendingDeletesRef.current.get(ingredientId);
+    if (!pendingDelete) {
+      return;
+    }
+
+    window.clearTimeout(pendingDelete.timerId);
+    pendingDeletesRef.current.delete(ingredientId);
+    restoreIngredient(pendingDelete.ingredient, pendingDelete.index);
+    dismissToast(pendingDelete.toastId);
+  };
+
+  const flushPendingDeletes = () => {
+    const pendingDeletes = Array.from(pendingDeletesRef.current.values());
+    pendingDeletesRef.current.clear();
+
+    pendingDeletes.forEach((pendingDelete) => {
+      window.clearTimeout(pendingDelete.timerId);
+      dismissToast(pendingDelete.toastId);
+      void apiDeleteIngredient(pendingDelete.recipeId, pendingDelete.ingredient.id).catch((err) => {
+        console.error('Delete ingredient error:', err);
+      });
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      flushPendingDeletes();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Helper function to get ingredient quantity
   const getIngredientQuantity = (ingredient: IngredientWithFood): string => {
     if (ingredient.quantity !== null) {
@@ -94,6 +182,8 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
   };
 
   const handleRecipeClick = async (recipe: Recipe) => {
+    flushPendingDeletes();
+
     if (navigate) {
       navigate('detail', recipe.id);
     }
@@ -194,29 +284,45 @@ export function useRecipeDetail(options: UseRecipeDetailOptions = {}) {
   const handleDeleteIngredient = async (ingredientId: number) => {
     if (!selectedRecipe) return;
 
-    try {
-      await apiDeleteIngredient(selectedRecipe.id, ingredientId);
-      const [ingredientsList, updatedRecipe] = await Promise.all([
-        apiFetchIngredients(selectedRecipe.id),
-        apiFetchRecipeDetails(selectedRecipe.id)
-      ]);
-      setIngredients(ingredientsList);
-      setSelectedRecipe(updatedRecipe);
-
-      if (onRecipeChange) {
-        onRecipeChange(updatedRecipe);
-      }
-    } catch (err) {
-      console.error('Delete ingredient error:', err);
-      if (handleUnauthorizedError(err)) {
-        setIngredientError('Session expired. Please login again.');
-      } else {
-        setIngredientError(getErrorMessage(err, 'Failed to delete ingredient'));
-      }
+    const existingPendingDelete = pendingDeletesRef.current.get(ingredientId);
+    if (existingPendingDelete) {
+      return;
     }
+
+    const ingredientIndex = ingredients.findIndex((ingredient) => ingredient.id === ingredientId);
+    const ingredient = ingredients[ingredientIndex];
+    if (!ingredient) {
+      return;
+    }
+
+    setIngredientError(null);
+    setIngredients((current) => current.filter((currentIngredient) => currentIngredient.id !== ingredientId));
+
+    const timerId = window.setTimeout(() => {
+      void finalizePendingDelete(ingredientId);
+    }, 5000);
+
+    const toastId = pushToast({
+      id: `ingredient-delete-${ingredientId}`,
+      message: 'Ingredient deleted',
+      durationMs: 5000,
+      action: {
+        label: 'Undo',
+        onClick: () => cancelPendingDelete(ingredientId),
+      },
+    });
+
+    pendingDeletesRef.current.set(ingredientId, {
+      ingredient,
+      index: ingredientIndex,
+      recipeId: selectedRecipe.id,
+      timerId,
+      toastId,
+    });
   };
 
   const handleBackToRecipes = () => {
+    flushPendingDeletes();
     setSelectedRecipe(null);
     setIngredients([]);
     setRecipeUpdateError(null);

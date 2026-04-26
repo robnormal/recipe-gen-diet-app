@@ -70,10 +70,9 @@ Vite/React workspace for the authenticated recipe, food, and meal-plan UI.
 - `category-filter.tsx` - Food category multi-filter controls for ingredient search.
 - `food-detail-view.tsx` - Food detail UI showing calorie density and nutrient/RDA information.
 - `food-search-results.tsx` - Search result list for selecting foods and opening food detail pages.
-- `ingredient-manager.tsx` - Coordinates ingredient search, creation, editing, and display for a recipe.
-- `ingredient-row.tsx` - Single ingredient row with display, edit, update, and delete behavior.
+- `ingredient-row.tsx` - Single ingredient row with always-inline amount editing, explicit unit/portion editing, and delete action behavior.
 - `ingredient-search-section.tsx` - Search form and category filter wrapper for adding ingredients.
-- `ingredients-table.tsx` - Table of recipe ingredients and related actions.
+- `ingredients-table.tsx` - Table of recipe ingredients, inline amount edit wiring, and add-ingredient CTA row.
 - `meal-plan-detail-view.tsx` - Meal-plan detail screen for editing metadata, managing recipes, and viewing nutrients.
 - `meal-plan-list.tsx` - Meal-plan list and creation UI.
 - `measurement-type-selector.tsx` - Selector for entering ingredients by grams or available food portions.
@@ -85,18 +84,28 @@ Vite/React workspace for the authenticated recipe, food, and meal-plan UI.
 - `recipe-list.tsx` - Recipe list view plus navigation to create/generate/detail flows.
 - `recipe-nutrients-table.tsx` - Nutrient table used for recipes or meal plans.
 
+### `frontend/src/components/toast/`
+
+- `toast.tsx` - Individual toast notification with optional action and countdown bar.
+- `toast-host.tsx` - Fixed-position toast stack renderer.
+
+### `frontend/src/contexts/`
+
+- `toast-context.tsx` - Toast provider and context for push/dismiss notification behavior.
+
 ### `frontend/src/hooks/`
 
 - `useAuth.ts` - Authentication state and handlers for session check, login, logout, and registration.
 - `useFoodDetail.ts` - Food detail loading state and navigation-aware food detail handlers.
 - `useFoodSearch.ts` - Food category loading, category selection, and ingredient search state.
-- `useIngredientForm.ts` - State and handlers for adding/editing ingredients, loading portions, and refreshing recipe data.
+- `useIngredientForm.ts` - State and handlers for adding/editing ingredients, quick amount saves, loading portions, and refreshing recipe data.
 - `useMealPlanDetail.ts` - State and handlers for loading, updating, deleting meal plans and managing recipes within them.
 - `useMealPlansList.ts` - Meal-plan list loading and create-meal-plan state.
 - `useNavigation.ts` - URL-backed view state for recipes, foods, creation, generation, meal plans, and browser back/forward handling.
 - `useRecipeCreation.ts` - Manual recipe creation and AI generation workflow state; creates generated recipes and ingredients.
-- `useRecipeDetail.ts` - Recipe detail loading, inline metadata saves, instructions draft state, ingredient list loading, deletion, and display helpers.
+- `useRecipeDetail.ts` - Recipe detail loading, inline metadata saves, instructions draft state, ingredient list loading, undoable ingredient deletion, and display helpers.
 - `useRecipesList.ts` - Recipe list loading state and refresh helper.
+- `useToasts.ts` - Convenience hook for the toast context.
 
 ### `frontend/src/services/`
 

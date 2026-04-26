@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useRef } from 'react';
 import {
   RecipeEditableField,
   RecipeEditableValue,
@@ -56,6 +56,7 @@ interface RecipeDetailViewProps {
       };
       isUpdating: boolean;
       error: string | null;
+      quickSaveStateById: Record<number, { isSaving: boolean; error: string | null }>;
     };
     actions: {
       setFormData: Dispatch<SetStateAction<IngredientFormState>>;
@@ -65,6 +66,8 @@ interface RecipeDetailViewProps {
       onCancel: () => void;
       onUpdate: () => void;
       onDelete: (ingredientId: number) => Promise<void>;
+      onQuickAmountSave: (ingredient: IngredientWithFood, draft: string) => Promise<void>;
+      onClearQuickAmountError: (ingredientId: number) => void;
     };
   };
   ingredientSearch: {
@@ -116,6 +119,8 @@ export function RecipeDetailView({
   ingredientSearch,
   newIngredient,
 }: RecipeDetailViewProps) {
+  const addIngredientSectionRef = useRef<HTMLDivElement>(null);
+
   // Early return if no recipe data
   if (!recipe.data) {
     return null;
@@ -158,6 +163,7 @@ export function RecipeDetailView({
       },
       isUpdating: isSavingIngredient,
       error: ingredientUpdateError,
+      quickSaveStateById,
     },
     actions: {
       setFormData: setEditIngredientData,
@@ -167,6 +173,8 @@ export function RecipeDetailView({
       onCancel: onCancelEditIngredient,
       onUpdate: onUpdateIngredient,
       onDelete: onDeleteIngredient,
+      onQuickAmountSave,
+      onClearQuickAmountError,
     },
   } = ingredientEdit;
 
@@ -212,6 +220,21 @@ export function RecipeDetailView({
     },
   } = newIngredient;
 
+  const focusAddIngredientSection = () => {
+    const addSection = addIngredientSectionRef.current;
+    if (!addSection) {
+      return;
+    }
+
+    addSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(() => {
+      const focusTarget = addSection.querySelector<HTMLElement>(
+        '.search-input, .ingredient-form select, .ingredient-form input'
+      );
+      focusTarget?.focus();
+    }, 250);
+  };
+
   return (
     <div className="recipe-detail-container">
       <RecipeDetailHeader recipe={selectedRecipe} onBack={onBack} onFieldSave={onFieldSave} />
@@ -238,6 +261,7 @@ export function RecipeDetailView({
               editPortionsError={editPortionsError}
               isSavingIngredient={isSavingIngredient}
               ingredientUpdateError={ingredientUpdateError}
+              quickSaveStateById={quickSaveStateById}
               getIngredientQuantity={getIngredientQuantity}
               getIngredientUnit={getIngredientUnit}
               onViewFoodDetails={onViewFoodDetails}
@@ -245,9 +269,12 @@ export function RecipeDetailView({
               onCancelEditIngredient={onCancelEditIngredient}
               onUpdateIngredient={onUpdateIngredient}
               onDeleteIngredient={onDeleteIngredient}
+              onQuickAmountSave={onQuickAmountSave}
+              onClearQuickAmountError={onClearQuickAmountError}
+              onAddIngredientClick={focusAddIngredientSection}
             />
 
-            <div className="add-ingredient-section">
+            <div className="add-ingredient-section" ref={addIngredientSectionRef}>
               <h4>Add Ingredient</h4>
 
               {!newIngredientFormData.food_id ? (

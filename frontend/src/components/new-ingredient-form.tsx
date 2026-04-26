@@ -35,6 +35,39 @@ export function NewIngredientForm({
   setSelectedPortionId,
   resetNewIngredientForm,
 }: NewIngredientFormProps) {
+  const getAddBlocker = () => {
+    if (!selectedMeasurementType) {
+      return 'Choose a measurement type';
+    }
+
+    if (selectedMeasurementType === 'grams') {
+      const grams = Number.parseFloat(newIngredient.gram_weight);
+      if (!newIngredient.gram_weight) {
+        return 'Enter a quantity';
+      }
+      if (!Number.isFinite(grams) || grams <= 0) {
+        return 'Quantity must be greater than 0';
+      }
+    }
+
+    if (selectedMeasurementType === 'portion') {
+      const quantity = Number.parseFloat(newIngredient.quantity);
+      if (!selectedPortionId) {
+        return 'Pick a portion';
+      }
+      if (!newIngredient.quantity) {
+        return 'Enter a quantity';
+      }
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        return 'Quantity must be greater than 0';
+      }
+    }
+
+    return null;
+  };
+
+  const addBlocker = getAddBlocker();
+
   return (
     <div className="new-ingredient-form">
       <div className="selected-food">
@@ -107,13 +140,9 @@ export function NewIngredientForm({
         <div className="form-actions">
           <button
             type="submit"
-            disabled={
-              isCreatingIngredient ||
-              !selectedMeasurementType ||
-              (selectedMeasurementType === 'grams' && !newIngredient.gram_weight) ||
-              (selectedMeasurementType === 'portion' && (!selectedPortionId || !newIngredient.quantity))
-            }
+            disabled={isCreatingIngredient || Boolean(addBlocker)}
             className="submit-button"
+            aria-describedby={addBlocker ? 'new-ingredient-save-hint' : undefined}
           >
             {isCreatingIngredient ? 'Adding...' : 'Add Ingredient'}
           </button>
@@ -127,6 +156,11 @@ export function NewIngredientForm({
           >
             Cancel
           </button>
+          {addBlocker && (
+            <span id="new-ingredient-save-hint" className="save-blocker-hint">
+              {addBlocker}
+            </span>
+          )}
         </div>
       </form>
     </div>
