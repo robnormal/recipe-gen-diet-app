@@ -38,6 +38,7 @@ import connectPgSimple from 'connect-pg-simple';
 import { pool } from './db_connection';
 import OpenAI from 'openai';
 import { generateRecipeWithLLM } from './recipe_generation';
+import { ensureFoodsIndexed } from './index-foods';
 
 // Extend express-session types to include userId
 declare module 'express-session' {
@@ -720,9 +721,12 @@ app.delete('/api/meal-plans/:id/recipes/:recipeId', requireAuth, requireMealPlan
 
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  (async () => {
+    await ensureFoodsIndexed();
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  })();
 }
 
 export default app;

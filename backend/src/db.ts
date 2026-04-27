@@ -1,4 +1,5 @@
 import {query, withClient} from './db_connection';
+import { getMeiliClient } from './meili_client';
 import bcrypt from 'bcryptjs';
 
 // nutrient.number for calories (there's more than one possibility)
@@ -9,51 +10,24 @@ export const DISPLAY_NUTRIENT_NUMBERS = ['208','203','205','291','204','601','32
 
 // Food search functions
 export async function searchFoods(words: string[], limit: number, offset: number, categoryIds: number[] | null = null) {
-  return withClient(async client => {
-    // Create search query using ts_query (handles multiple words)
-    const searchQuery = words.join(' & ');
+  const client = await getMeiliClient();
+  const index = client.index('foods');
+  const q = words.join(' ');
 
-    // Build query with optional category filter
-    let categoryFilter = '';
-    const queryParams: (string | number | number[])[] = [searchQuery, limit, offset];
-    let countFilter = '';
-    const countParams: (string | number[])[] = [searchQuery];
+  const filter = categoryIds && categoryIds.length > 0
+    ? `food_category_id IN [${categoryIds.join(', ')}]`
+    : undefined;
 
-    if (categoryIds && categoryIds.length > 0) {
-      categoryFilter = 'AND f.food_category_id = ANY($4)';
-      queryParams.push(categoryIds);
+  const result = await index.search(q, { limit, offset, filter });
 
-      // For count, $2 should be used for the categories instead of $4
-      countFilter = 'AND f.food_category_id = ANY($2)';
-      countParams.push(categoryIds);
-    }
-
-    const result = await client.query(
-      `SELECT
-         f.id, f.description, f.calorie_density,
-         ts_rank(to_tsvector('english', f.description),
-                 plainto_tsquery('english', $1)) as rank
-     FROM foods f
-     WHERE to_tsvector('english', f.description) @@ plainto_tsquery('english', $1)
-       ${categoryFilter}
-     ORDER BY rank DESC, f.description
-     LIMIT $2 OFFSET $3`,
-      queryParams
-    );
-
-    const countResult = await client.query(
-      `SELECT COUNT(*)
-     FROM foods f
-     WHERE to_tsvector('english', f.description) @@ plainto_tsquery('english', $1)
-       ${countFilter}`,
-      countParams
-    );
-
-    return {
-      results: result.rows,
-      total: parseInt(countResult.rows[0].count)
-    };
-  });
+  return {
+    results: result.hits.map((h: Record<string, unknown>) => ({
+      id: h.id as number,
+      description: h.description as string,
+      calorie_density: h.calorie_density as number | null,
+    })),
+    total: result.estimatedTotalHits ?? 0,
+  };
 }
 
 // Food category functions

@@ -10,7 +10,8 @@
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
     "import-foods": "tsx --env-file=.env src/import-foods.ts",
-    "import-rdas": "tsx --env-file=.env src/import-rdas.ts"
+    "import-rdas": "tsx --env-file=.env src/import-rdas.ts",
+    "index-foods": "tsx --env-file=.env src/index-foods.ts"
   },
   "dependencies": {
     "bcryptjs": "*",
@@ -18,6 +19,7 @@
     "cors": "*",
     "express": "*",
     "express-session": "*",
+    "meilisearch": "^0.57.0",
     "openai": "*",
     "pg": "*"
   },

@@ -6,7 +6,7 @@ Concise map of project-owned files and folders. Dependency, build, coverage, and
 
 - `.gitignore` - Git ignore rules for dependencies, generated outputs, environment files, and local artifacts.
 - `README.md` - High-level setup and script documentation for the TypeScript Express/React app.
-- `docker-compose.yml` - Local service orchestration, primarily for infrastructure such as PostgreSQL.
+- `docker-compose.yml` - Local service orchestration for PostgreSQL and Meilisearch.
 - `package.json` - npm workspace root for `backend` and `frontend`; defines aggregate `dev`, `build`, `lint`, and `typecheck` scripts.
 - `package-lock.json` - Locked dependency graph for the npm workspaces.
 - `schema.sql` - PostgreSQL schema for foods, nutrients, users, recipes, ingredients, meal plans, sessions, indexes, and table comments.
@@ -29,11 +29,13 @@ Express API workspace for authentication, food lookup, recipe management, meal p
 ### `backend/src/`
 
 - `add-category-emojis.ts` - Utility script that maps known USDA food categories to emojis and updates `food_categories` rows.
-- `db.ts` - Data access layer for food search, category lookup, users, recipes, ingredients, meal plans, and nutrient/calorie-density calculations.
+- `db.ts` - Data access layer for food search (Meilisearch), category lookup, users, recipes, ingredients, meal plans, and nutrient/calorie-density calculations.
 - `db_connection.ts` - PostgreSQL pool singleton, query helper, client helper, and shutdown hooks.
 - `import-foods.ts` - USDA FoodData Central JSON importer that upserts categories, foods, nutrients, measure units, portions, and nutrient amounts.
 - `import-rdas.ts` - CSV importer for recommended daily allowance values into `nutrient_rdas`.
 - `index.ts` - Express server entry point; configures CORS, sessions, auth middleware, and all REST API routes.
+- `index-foods.ts` - One-off script to populate the Meilisearch `foods` index from PostgreSQL; also exports `ensureFoodsIndexed` for server startup.
+- `meili_client.ts` - Meilisearch client singleton.
 - `recipe_generation.ts` - OpenAI-based recipe generator that searches database foods through tool calls, validates generated ingredients, enriches results, and logs OpenAI requests.
 
 ### `backend/src/__tests__/`

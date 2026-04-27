@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { FoodCategory, FoodResult, SearchResponse } from '../types';
 import { fetchCategories as apiFetchCategories, ApiError } from '../services/api';
 
@@ -36,10 +36,8 @@ export function useFoodSearch(user: { id: number } | null) {
     }
   }, [user]);
 
-  const handleIngredientSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!ingredientSearchQuery.trim()) {
+  const performSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
       setIngredientSearchResults([]);
       return;
     }
@@ -48,7 +46,7 @@ export function useFoodSearch(user: { id: number } | null) {
     setIngredientSearchError(null);
 
     try {
-      let url = `/api/foods/search?q=${encodeURIComponent(ingredientSearchQuery.trim())}&limit=20&offset=0`;
+      let url = `/api/foods/search?q=${encodeURIComponent(query.trim())}&limit=20&offset=0`;
       if (selectedCategories.length > 0) {
         url += `&categories=${selectedCategories.join(',')}`;
       }
@@ -73,6 +71,24 @@ export function useFoodSearch(user: { id: number } | null) {
     } finally {
       setIsSearchingIngredient(false);
     }
+  }, [selectedCategories]);
+
+  // Debounced typeahead: search 200ms after query changes
+  useEffect(() => {
+    if (!ingredientSearchQuery.trim()) {
+      setIngredientSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      performSearch(ingredientSearchQuery);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [ingredientSearchQuery, performSearch]);
+
+  const handleIngredientSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Bypass debounce on explicit form submit (Enter key)
+    performSearch(ingredientSearchQuery);
   };
 
   const clearSearchResults = () => {
