@@ -25,10 +25,7 @@ export function useFoodDetail(options: UseFoodDetailOptions = {}) {
   const getErrorMessage = (error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback;
 
-  const handleFoodClick = useCallback(async (foodId: number) => {
-    if (navigate) {
-      navigate('food', foodId);
-    }
+  const loadFood = useCallback(async (foodId: number) => {
     setIsLoadingFood(true);
     setFoodError(null);
     setSelectedFood(null);
@@ -46,7 +43,14 @@ export function useFoodDetail(options: UseFoodDetailOptions = {}) {
     } finally {
       setIsLoadingFood(false);
     }
-  }, [navigate]);
+  }, []);
+
+  const handleFoodClick = useCallback(async (foodId: number) => {
+    if (navigate) {
+      navigate('food', foodId);
+    }
+    await loadFood(foodId);
+  }, [navigate, loadFood]);
 
   const handleBack = useCallback(() => {
     if (navigate) {
@@ -65,6 +69,7 @@ export function useFoodDetail(options: UseFoodDetailOptions = {}) {
     handlers: {
       onFoodClick: handleFoodClick,
       onBack: handleBack,
+      loadFood,
     },
   };
 }

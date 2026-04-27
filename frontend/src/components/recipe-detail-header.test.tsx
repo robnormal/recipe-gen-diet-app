@@ -97,7 +97,7 @@ describe('RecipeDetailHeader', () => {
     const user = userEvent.setup();
     const onFieldSave = vi.fn(async () => undefined);
 
-    render(<RecipeDetailHeader recipe={recipe} onBack={vi.fn()} onFieldSave={onFieldSave} />);
+    render(<RecipeDetailHeader recipe={recipe} onFieldSave={onFieldSave} />);
 
     await user.click(screen.getByRole('button', { name: /recipe servings/i }));
     const servingsInput = screen.getByRole('spinbutton', { name: /recipe servings/i });

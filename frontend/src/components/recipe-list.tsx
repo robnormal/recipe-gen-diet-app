@@ -1,13 +1,16 @@
 import { Recipe } from '../types';
+import { EmptyState } from './empty-state';
 
 interface RecipeListProps {
   recipes: Recipe[];
   isLoadingRecipes: boolean;
   recipesError: string | null;
   onRecipeClick: (recipe: Recipe) => void;
+  onCreateRecipe: () => void;
+  onGenerateRecipe: () => void;
 }
 
-export function RecipeList({ recipes, isLoadingRecipes, recipesError, onRecipeClick }: RecipeListProps) {
+export function RecipeList({ recipes, isLoadingRecipes, recipesError, onRecipeClick, onCreateRecipe, onGenerateRecipe }: RecipeListProps) {
   return (
     <div className="recipes-section">
       <h2>My Recipes</h2>
@@ -16,7 +19,12 @@ export function RecipeList({ recipes, isLoadingRecipes, recipesError, onRecipeCl
       ) : recipesError ? (
         <p className="error-message">{recipesError}</p>
       ) : recipes.length === 0 ? (
-        <p className="no-results">No recipes yet. Create your first recipe above!</p>
+        <EmptyState
+          title="No recipes yet"
+          description="Get started by creating a recipe manually or generating one with AI."
+          action={{ label: 'Create Recipe', onClick: onCreateRecipe }}
+          secondaryAction={{ label: 'Generate Recipe', onClick: onGenerateRecipe }}
+        />
       ) : (
         <ul className="recipes-list">
           {recipes.map((recipe) => (

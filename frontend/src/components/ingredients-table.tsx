@@ -90,6 +90,7 @@ export function IngredientsTable({
           <th>Quantity</th>
           <th>Unit</th>
           <th>Calorie Density</th>
+          <th>Calories</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -126,7 +127,7 @@ export function IngredientsTable({
       </tbody>
       <tfoot>
         <tr className="add-ingredient-cta-row">
-          <td colSpan={5}>
+          <td colSpan={6}>
             <button type="button" className="add-ingredient-cta-button" onClick={onAddIngredientClick}>
               + Add ingredient
             </button>

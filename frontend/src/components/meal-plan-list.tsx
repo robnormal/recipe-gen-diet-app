@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MealPlan } from '../types';
+import { EmptyState } from './empty-state';
 
 interface MealPlanListProps {
   mealPlans: MealPlan[];
@@ -11,10 +12,10 @@ interface MealPlanListProps {
   createError?: string | null;
 }
 
-export function MealPlanList({ 
-  mealPlans, 
-  isLoadingMealPlans, 
-  mealPlansError, 
+export function MealPlanList({
+  mealPlans,
+  isLoadingMealPlans,
+  mealPlansError,
   onMealPlanClick,
   onCreateMealPlan,
   isCreatingMealPlan = false,
@@ -97,7 +98,11 @@ export function MealPlanList({
       ) : mealPlansError ? (
         <p className="error-message">{mealPlansError}</p>
       ) : mealPlans.length === 0 ? (
-        <p className="no-results">No meal plans yet. Create your first meal plan!</p>
+        <EmptyState
+          title="No meal plans yet"
+          description="Create your first meal plan to start organizing your recipes."
+          action={onCreateMealPlan ? { label: 'Create Meal Plan', onClick: () => setShowCreateForm(true) } : undefined}
+        />
       ) : (
         <ul className="meal-plans-list">
           {mealPlans.map((mealPlan) => (

@@ -26,7 +26,6 @@ interface RecipeDetailViewProps {
       onFieldSave: (field: RecipeEditableField, value: RecipeEditableValue) => Promise<void>;
       setInstructionsDraft: Dispatch<SetStateAction<string>>;
       onInstructionsBlur: () => Promise<void>;
-      onBack: () => void;
     };
   };
   ingredients: {
@@ -136,7 +135,6 @@ export function RecipeDetailView({
       onFieldSave,
       setInstructionsDraft,
       onInstructionsBlur,
-      onBack,
     },
   } = recipe;
 
@@ -237,7 +235,7 @@ export function RecipeDetailView({
 
   return (
     <div className="recipe-detail-container">
-      <RecipeDetailHeader recipe={selectedRecipe} onBack={onBack} onFieldSave={onFieldSave} />
+      <RecipeDetailHeader recipe={selectedRecipe} onFieldSave={onFieldSave} />
 
       {isLoadingRecipe ? (
         <p className="loading-message">Loading recipe details...</p>

@@ -17,7 +17,6 @@ interface MealPlanDetailViewProps {
   setName: (name: string) => void;
   description: string;
   setDescription: (description: string) => void;
-  onBack: () => void;
   onUpdateMealPlan: (e: React.FormEvent) => void;
   onDeleteMealPlan: () => void;
   onAddRecipe: (recipe: Recipe, quantity: number) => void;
@@ -40,7 +39,6 @@ export function MealPlanDetailView({
   setName,
   description,
   setDescription,
-  onBack,
   onUpdateMealPlan,
   onDeleteMealPlan,
   onAddRecipe,
@@ -167,9 +165,6 @@ export function MealPlanDetailView({
     <div className="meal-plan-detail-container">
       <div className="meal-plan-detail-header">
         <h2>{mealPlan?.name || 'Meal Plan'}</h2>
-        <button onClick={onBack} className="back-button">
-          Back to Meal Plans
-        </button>
       </div>
 
       {(totalKcal !== null || (mealPlan?.calorie_density !== null && mealPlan?.calorie_density !== undefined)) && (

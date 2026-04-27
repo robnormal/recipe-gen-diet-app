@@ -63,13 +63,28 @@ Vite/React workspace for the authenticated recipe, food, and meal-plan UI.
 
 - `App.test.tsx` - Frontend smoke/unit test coverage for the app shell.
 
+### `frontend/src/components/` (tests)
+
+- `breadcrumbs.test.tsx` - Tests for breadcrumb rendering and click handlers.
+- `food-detail-modal.test.tsx` - Tests for modal open/close, Escape, backdrop click, focus restoration, and full-page link.
+- `recipe-detail-header.test.tsx` - Component tests for inline recipe metadata editing behavior.
+- `recipe-list.test.tsx` - Tests for recipe list empty-state CTA navigation.
+
+### `frontend/src/hooks/` (tests)
+
+- `useNavigation.test.ts` - Tests for `?food=` param round-trips, `foods` view parsing, modal open/close, and popstate behavior.
+
 ### `frontend/src/components/`
 
-- `app-header.tsx` - Header showing the signed-in user and logout action.
+- `app-header.tsx` - Header showing the signed-in user and logout action; rendered inside the sidebar footer.
 - `auth-view.tsx` - Login and registration UI.
+- `breadcrumbs.tsx` - Breadcrumb navigation driven per-view.
 - `category-filter.tsx` - Food category multi-filter controls for ingredient search.
-- `food-detail-view.tsx` - Food detail UI showing calorie density and nutrient/RDA information.
+- `empty-state.tsx` - Reusable empty-state component with icon, title, description, and CTA buttons.
+- `food-detail-modal.tsx` - Modal overlay for food details opened from ingredient rows; focus trap and focus restoration.
+- `food-detail-view.tsx` - Food detail UI showing calorie density and nutrient/RDA information; supports `mode='modal' | 'page'`.
 - `food-search-results.tsx` - Search result list for selecting foods and opening food detail pages.
+- `foods-list-view.tsx` - Top-level Foods browse view reusing search results and category filter.
 - `ingredient-row.tsx` - Single ingredient row with always-inline amount editing, explicit unit/portion editing, and delete action behavior.
 - `ingredient-search-section.tsx` - Search form and category filter wrapper for adding ingredients.
 - `ingredients-table.tsx` - Table of recipe ingredients, inline amount edit wiring, and add-ingredient CTA row.
@@ -80,9 +95,9 @@ Vite/React workspace for the authenticated recipe, food, and meal-plan UI.
 - `recipe-creation-forms.tsx` - UI for manual recipe creation and AI recipe generation prompts.
 - `recipe-detail-header.tsx` - Recipe detail header with inline click-to-edit recipe metadata, stats, and field-level saves.
 - `recipe-detail-view.tsx` - Recipe detail screen composition.
-- `recipe-detail-header.test.tsx` - Component tests for inline recipe metadata editing behavior.
 - `recipe-list.tsx` - Recipe list view plus navigation to create/generate/detail flows.
 - `recipe-nutrients-table.tsx` - Nutrient table used for recipes or meal plans.
+- `sidebar.tsx` - Primary navigation sidebar with Recipes, Meal Plans, and Foods links; responsive collapse.
 
 ### `frontend/src/components/toast/`
 
@@ -96,12 +111,13 @@ Vite/React workspace for the authenticated recipe, food, and meal-plan UI.
 ### `frontend/src/hooks/`
 
 - `useAuth.ts` - Authentication state and handlers for session check, login, logout, and registration.
-- `useFoodDetail.ts` - Food detail loading state and navigation-aware food detail handlers.
+- `useFoodDetail.ts` - Food detail loading state and navigation-aware food detail handlers; exposes `loadFood` for modal use.
 - `useFoodSearch.ts` - Food category loading, category selection, and ingredient search state.
+- `useFoodsList.ts` - Thin wrapper around `useFoodSearch` for the top-level Foods browse view.
 - `useIngredientForm.ts` - State and handlers for adding/editing ingredients, quick amount saves, loading portions, and refreshing recipe data.
 - `useMealPlanDetail.ts` - State and handlers for loading, updating, deleting meal plans and managing recipes within them.
 - `useMealPlansList.ts` - Meal-plan list loading and create-meal-plan state.
-- `useNavigation.ts` - URL-backed view state for recipes, foods, creation, generation, meal plans, and browser back/forward handling.
+- `useNavigation.ts` - URL-backed view state including `modalFoodId` and `?food=` query param for modal overlays; handles browser back/forward.
 - `useRecipeCreation.ts` - Manual recipe creation and AI generation workflow state; creates generated recipes and ingredients.
 - `useRecipeDetail.ts` - Recipe detail loading, inline metadata saves, instructions draft state, ingredient list loading, undoable ingredient deletion, and display helpers.
 - `useRecipesList.ts` - Recipe list loading state and refresh helper.

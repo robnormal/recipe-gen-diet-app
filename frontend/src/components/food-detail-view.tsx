@@ -7,9 +7,10 @@ interface FoodDetailViewProps {
   isLoading: boolean;
   error: string | null;
   onBack: () => void;
+  mode?: 'modal' | 'page';
 }
 
-export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailViewProps) {
+export function FoodDetailView({ food, isLoading, error, onBack, mode = 'page' }: FoodDetailViewProps) {
   const [amount, setAmount] = useState<number>(100);
   const [gramInputValue, setGramInputValue] = useState<string>('100');
   const [availablePortions, setAvailablePortions] = useState<FoodPortion[]>([]);
@@ -64,12 +65,14 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
   if (error) {
     return (
       <div className="recipe-detail-container">
-        <div className="recipe-detail-header">
-          <h2>Food Details</h2>
-          <button onClick={onBack} className="back-button">
-            Back
-          </button>
-        </div>
+        {mode === 'page' && (
+          <div className="recipe-detail-header">
+            <h2>Food Details</h2>
+            <button onClick={onBack} className="back-button">
+              Back
+            </button>
+          </div>
+        )}
         <p className="error-message">{error}</p>
       </div>
     );
@@ -78,12 +81,14 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
   if (!food) {
     return (
       <div className="recipe-detail-container">
-        <div className="recipe-detail-header">
-          <h2>Food Details</h2>
-          <button onClick={onBack} className="back-button">
-            Back
-          </button>
-        </div>
+        {mode === 'page' && (
+          <div className="recipe-detail-header">
+            <h2>Food Details</h2>
+            <button onClick={onBack} className="back-button">
+              Back
+            </button>
+          </div>
+        )}
         <p className="no-results">Food not found.</p>
       </div>
     );
@@ -93,9 +98,11 @@ export function FoodDetailView({ food, isLoading, error, onBack }: FoodDetailVie
     <div className="recipe-detail-container">
       <div className="recipe-detail-header">
         <h2>{food.description}</h2>
-        <button onClick={onBack} className="back-button">
-          Back
-        </button>
+        {mode === 'page' && (
+          <button onClick={onBack} className="back-button">
+            Back
+          </button>
+        )}
       </div>
 
       {food.calorie_density !== null && food.calorie_density !== undefined && (

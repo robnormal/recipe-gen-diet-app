@@ -123,11 +123,10 @@ export function InlineField({
 
 interface RecipeDetailHeaderProps {
   recipe: Recipe;
-  onBack: () => void;
   onFieldSave: (field: RecipeEditableField, value: RecipeEditableValue) => Promise<void>;
 }
 
-export function RecipeDetailHeader({ recipe, onBack, onFieldSave }: RecipeDetailHeaderProps) {
+export function RecipeDetailHeader({ recipe, onFieldSave }: RecipeDetailHeaderProps) {
   const totalKcal = getTotalKcal(recipe.nutrients ?? []);
 
   return (
@@ -142,9 +141,6 @@ export function RecipeDetailHeader({ recipe, onBack, onFieldSave }: RecipeDetail
             className="recipe-title-inline"
           />
         </h2>
-        <button onClick={onBack} className="back-button">
-          Back to Recipes
-        </button>
       </div>
 
       {(totalKcal !== null || recipe.calorie_density !== null) && (

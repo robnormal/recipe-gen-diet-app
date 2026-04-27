@@ -290,6 +290,11 @@ export function IngredientRow({
       </td>
       <td>{ingredient.calorie_density ? `${ingredient.calorie_density.toFixed(1)} kcal/g` : 'N/A'}</td>
       <td>
+        {ingredient.calorie_density
+          ? `${Math.round(ingredient.gram_weight * ingredient.calorie_density)}`
+          : 'N/A'}
+      </td>
+      <td>
         {isEditing ? (
           <div className="ingredient-actions">
             <button
